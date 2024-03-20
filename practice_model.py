@@ -286,7 +286,7 @@ def build_transformer(src_vocab_size: int, tgt_vocab_size: int, src_block_size: 
     for p in transformer.parameters():
         if p.dim() > 1 :
             nn.init.xavier_uniform(p)
-    
+
     return transformer
 
 

@@ -8,6 +8,7 @@ class InputEmbeddings(nn.Module):
         super().__init__()
         self.d_model = d_model
         self.vocab_size = vocab_size
+        print(self.vocab_size)
         self.embedding = nn.Embedding(vocab_size, d_model)
 
     def forward(self, x):
@@ -24,6 +25,7 @@ class LearnedPositionalEncoding(nn.Module):
         self.embedding = nn.Embedding(block_size, d_model)
 
     def forward(self, x):
+        x = x.long()
         x = self.embedding(x)
         return self.dropout(x)
 
@@ -77,8 +79,11 @@ class MultiHeadAttention(nn.Module):
 
         # (Batch, h, block_size, d_k) --> (Batch, h, block_size, block_size)
         attention_scores = (query @ key.transpose(-2, -1)) / math.sqrt(d_k)
+        # For encoder we can remove the below mask as we are having only decoder for this transformer we have only decoder in this model
+        attention_scores = attention_scores.masked_fill(tril[:block_size, :block_size] == 0, float('-inf'))
+        # Apply padding mask
         if mask is not None:
-            attention_scores = attention_scores.masked_fill(tril[:block_size, :block_size] == 0, float('-inf'))
+            attention_scores = attention_scores.masked_fill(mask == 0, float('-inf'))
         attention_scores = attention_scores.softmax(dim=-1) # Batch, h, block_size, block_size
         if dropout is not None:
             attention_scores = dropout(attention_scores)
@@ -126,7 +131,7 @@ class DecoderBlock(nn.Module):
         self.residual_connections = nn.ModuleList([ResidualConnection(d_model, dropout) for _ in range(2)])
 
     def forward(self, x, mask):
-        x = self.residual_connections[0](x, lambda x: self.self_attention_block(x, x, x, mask))
+        x = self.residual_connections[0](x, lambda x: self.self_attention_block(x, mask))
         x = self.residual_connections[1](x, self.feed_forward_block)
         return x
 
@@ -136,7 +141,7 @@ class Decoder(nn.Module):
         super().__init__()
         self.layers = layers
         self.decoder_blocks = nn.ModuleList([DecoderBlock(d_model, h, block_size, dropout) for _ in range(layers)])
-        self.norm = PTLayerNormalization()
+        self.norm = PTLayerNormalization(d_model)
 
     def forward(self, x, mask):
         for layer in self.decoder_blocks:

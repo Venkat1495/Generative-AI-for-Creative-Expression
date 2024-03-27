@@ -106,7 +106,7 @@ def get_or_build_tokenizer(config, ds):
 
 def get_ds(config):
     # ds_raw = load_dataset('opus_books', f'{config["lang_src"]}-{config["lang_tgt"]}', split='train')
-    ds_raw = pd.read_csv('data/spotify_millsongdata.csv')
+    ds_raw = pd.read_csv(config['path'])
     ds_raw = d.from_pandas(ds_raw)
     print(type(ds_raw))
 

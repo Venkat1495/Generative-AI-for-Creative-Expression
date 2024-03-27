@@ -10,7 +10,8 @@ def get_config():
         "model_filename": "tmodel_",
         "preload": None,
         "tokenizer_file": "tokenizer.json",
-        "experiment_name": "runs/tmodel"
+        "experiment_name": "runs/tmodel",
+        "path": 'data/spotify_millsongdata.csv'
     }
 
 def get_weights_file_path(config, epoch: str):

@@ -23,6 +23,40 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 
+def custom_collate_fn(batch):
+    # Find the maximum number of segments among all samples in the batch
+    max_segments = max(len(item['inputs']) for item in batch)
+
+    # Initialize lists to hold batched data
+    batched_inputs = []
+    batched_masks = []
+    batched_labels = []
+    batched_texts = []
+
+    for item in batch:
+        # Pad each sample's segments to match max_segments
+        padded_input = torch.nn.functional.pad(item['inputs'], (0, 0, 0, max_segments - len(item['inputs'])), 'constant',
+                                               0)
+        padded_mask = torch.nn.functional.pad(item['masks'], (0, 0, 0, max_segments - len(item['masks'])), 'constant', 0)
+
+        # Stack or pad labels as needed
+        # Example assumes labels need similar padding; adjust as per your label structure
+        padded_label = torch.nn.functional.pad(item['labels'], (0, max_segments - len(item['labels'])), 'constant', 0)
+
+        batched_inputs.append(padded_input)
+        batched_masks.append(padded_mask)
+        batched_labels.append(padded_label)
+        batched_texts.append(item['src_text'])
+
+    # Stack the lists to create batch tensors
+    batched_inputs = torch.stack(batched_inputs)
+    batched_masks = torch.stack(batched_masks)
+    batched_labels = torch.stack(batched_labels)
+    # For texts, you might just keep it as a list or handle differently as needed
+
+    return {'input': batched_inputs, 'mask': batched_masks, 'label': batched_labels, 'src_text': batched_texts}
+
+
 def greedy_decode(model, source, source_mask, tokenizer, max_len, device):
     sos_idx = tokenizer.token_to_id('[SOS]')
     eos_idx = tokenizer.token_to_id('[EOS]')
@@ -131,8 +165,8 @@ def get_ds(config):
 
     print(f'Max length of source sentence: {max_len_src}')
 
-    train_dataloader = DataLoader(train_ds, batch_size=config['batch_size'], shuffle=True)
-    val_dataloder = DataLoader(val_ds, batch_size=1, shuffle=True)
+    train_dataloader = DataLoader(train_ds, batch_size=config['batch_size'], shuffle=True, collate_fn=custom_collate_fn)
+    val_dataloder = DataLoader(val_ds, batch_size=1, shuffle=True, collate_fn=custom_collate_fn)
 
     return train_dataloader, val_dataloder, tokenizer_src
 

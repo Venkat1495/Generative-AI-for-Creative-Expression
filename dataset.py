@@ -10,7 +10,7 @@ class SongsDataset(Dataset):
 
         self.ds = ds
         self.tokenizer_src = tokenizer_src
-        self.max_seq_len = seq_len -2 # account for [SOS] and [EOS]
+        self.max_seq_len = seq_len - 3 # account for [SOS] and [EOS]
 
         # self.sos_token = torch.tensor([tokenizer_src.token_to_id("[SOS]")], dtype=torch.int64)
         # self.eos_token = torch.tensor([tokenizer_src.token_to_id('[EOS]')], dtype=torch.int64)
@@ -27,6 +27,8 @@ class SongsDataset(Dataset):
         src_text = src_traget_pair['text']
 
         input_tokens = self.tokenizer_src.encode(src_text).ids
+        input_padding = 1200 - len(input_tokens)
+        input_tokens += [self.pad_token] * input_padding
 
         # Initialize segments
         input_segments = []

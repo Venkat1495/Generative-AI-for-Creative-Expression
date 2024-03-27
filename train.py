@@ -23,38 +23,38 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 
-def custom_collate_fn(batch):
-    # Determine the maximum number of segments and the maximum sequence length
-    max_segments = max(len(item['inputs']) for item in batch)
-    max_seq_length = max(max(seq.size(0) for seq in item['inputs']) for item in batch)
-
-    # Initialize containers for the batched data
-    batched_inputs = []
-    batched_masks = []
-    batched_labels = []
-    batched_texts = []
-
-    for item in batch:
-        # Pad the inputs and masks to the max_seq_length, and ensure each item has max_segments
-        inputs = [torch.nn.functional.pad(seq, (0, max_seq_length - seq.size(0)), 'constant', 0) for seq in item['inputs']]
-        masks = [torch.nn.functional.pad(mask, (0, 0, 0, max_seq_length - mask.size(3)), 'constant', 0) for mask in item['masks']]
-
-        # Pad the lists to have max_segments
-        inputs += [torch.zeros(max_seq_length) for _ in range(max_segments - len(inputs))]
-        masks += [torch.zeros(1, 1, max_seq_length) for _ in range(max_segments - len(masks))]
-
-        # Stack and append to the batch
-        batched_inputs.append(torch.stack(inputs))
-        batched_masks.append(torch.stack(masks))
-        batched_labels.append(item['label'])  # Adjust based on how you handle labels for multiple segments
-        batched_texts.append(item['src_text'])
-
-    # Convert lists to tensors
-    batched_inputs = torch.stack(batched_inputs)
-    batched_masks = torch.stack(batched_masks)
-    batched_labels = torch.stack(batched_labels)  # Adjust this line based on your actual label structure
-
-    return {'inputs': batched_inputs, 'masks': batched_masks, 'labels': batched_labels, 'src_text': batched_texts}
+# def custom_collate_fn(batch):
+#     # Determine the maximum number of segments and the maximum sequence length
+#     max_segments = max(len(item['inputs']) for item in batch)
+#     max_seq_length = max(max(seq.size(0) for seq in item['inputs']) for item in batch)
+#
+#     # Initialize containers for the batched data
+#     batched_inputs = []
+#     batched_masks = []
+#     batched_labels = []
+#     batched_texts = []
+#
+#     for item in batch:
+#         # Pad the inputs and masks to the max_seq_length, and ensure each item has max_segments
+#         inputs = [torch.nn.functional.pad(seq, (0, max_seq_length - seq.size(0)), 'constant', 0) for seq in item['inputs']]
+#         masks = [torch.nn.functional.pad(mask, (0, 0, 0, max_seq_length - mask.size(3)), 'constant', 0) for mask in item['masks']]
+#
+#         # Pad the lists to have max_segments
+#         inputs += [torch.zeros(max_seq_length) for _ in range(max_segments - len(inputs))]
+#         masks += [torch.zeros(1, 1, max_seq_length) for _ in range(max_segments - len(masks))]
+#
+#         # Stack and append to the batch
+#         batched_inputs.append(torch.stack(inputs))
+#         batched_masks.append(torch.stack(masks))
+#         batched_labels.append(item['label'])  # Adjust based on how you handle labels for multiple segments
+#         batched_texts.append(item['src_text'])
+#
+#     # Convert lists to tensors
+#     batched_inputs = torch.stack(batched_inputs)
+#     batched_masks = torch.stack(batched_masks)
+#     batched_labels = torch.stack(batched_labels)  # Adjust this line based on your actual label structure
+#
+#     return {'inputs': batched_inputs, 'masks': batched_masks, 'labels': batched_labels, 'src_text': batched_texts}
 
 
 
@@ -166,8 +166,8 @@ def get_ds(config):
 
     print(f'Max length of source sentence: {max_len_src}')
 
-    train_dataloader = DataLoader(train_ds, batch_size=config['batch_size'], shuffle=True, collate_fn=custom_collate_fn)
-    val_dataloder = DataLoader(val_ds, batch_size=1, shuffle=True, collate_fn=custom_collate_fn)
+    train_dataloader = DataLoader(train_ds, batch_size=config['batch_size'], shuffle=True)
+    val_dataloder = DataLoader(val_ds, batch_size=1, shuffle=True)
 
     return train_dataloader, val_dataloder, tokenizer_src
 

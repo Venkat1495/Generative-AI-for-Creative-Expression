@@ -4,7 +4,7 @@ def get_config():
         "batch_size": 8,
         "num_epochs": 20,
         "lr": 10**-4,
-        "seq_len": 1200,
+        "seq_len": 300,
         "d_model": 512,
         "model_folder": "weights",
         "model_filename": "tmodel_",

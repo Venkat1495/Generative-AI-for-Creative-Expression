@@ -51,7 +51,7 @@ def run_validation(model, validation_ds, tokenizer, max_len, device, print_msg, 
     model.eval()
     count = 0
 
-    source_text = []
+    source_texts = []
     predicted = []
 
 
@@ -60,26 +60,28 @@ def run_validation(model, validation_ds, tokenizer, max_len, device, print_msg, 
     with torch.no_grad():
         for batch in validation_ds:
             count += 1
-            input = batch['input'].to(device)
-            mask = batch['mask'].to(device)
+            inputs = batch['inputs'].to(device)
+            masks = batch['masks'].to(device)
 
-            assert input.size(0) == 1, "Batch size must be 1 for validation"
+            for i in range(inputs.size(1)):
+                input = inputs[:, i, :]
+                mask = masks[:, i, :, :]
+                model_out = greedy_decode(model, input, mask, tokenizer, max_len, device)
 
-            model_out = greedy_decode(model, input, mask, tokenizer, max_len, device)
+                source_text = batch['src_text'][0]
 
-            source_text = batch['src_text'][0]
+                model_out_text = tokenizer.decode(model_out.detach().cpu().numpy())
 
-            model_out_text = tokenizer.decode(model_out.detach().cpu().numpy())
+                source_texts.append(source_text)
+                predicted.append(model_out_text)
 
-            source_text.append(source_text)
-            predicted.append(model_out_text)
-
-            # print to the console
-            print_msg('-'*console_width)
-            print_msg(f'SOURCE: {source_text}')
-            print_msg(f'PREDICTED: {model_out_text}')
+                # print to the console
+                print_msg('-'*console_width)
+                print_msg(f'SOURCE: {source_text}')
+                print_msg(f'PREDICTED: {model_out_text}')
 
             if count == num_examples:
+                print_msg('-' * console_width)
                 break
 
 
@@ -173,25 +175,31 @@ def train_model(config):
         for batch in batch_iterator:
             model.train()
 
-            input = batch['input'].to(device)
-            mask = batch['mask'].to(device)
+            inputs = batch['inputs'].to(device)
+            masks = batch['masks'].to(device)
+            labels = batch['labels'].to(device)
 
-            decoder_output = model.decode(input, mask)
-            proj_output = model.project(decoder_output)
+            batch_loss = 0
+            for i in range(inputs.size(1)):
+                input = inputs[:, i, :]
+                mask = masks[:, i, :, :]
+                label = labels[:, i, :]
 
-            label = batch['label'].to(device)
+                decoder_output = model.decode(input, mask)
+                proj_output = model.project(decoder_output)
 
-            loss = loss_fn(proj_output.view(-1, tokenizer_src.get_vocab_size()), label.view)
-            batch_iterator.set_postfix({f"loss": f"{loss.item():6.3f}"})
+                loss = loss_fn(proj_output.view(-1, tokenizer_src.get_vocab_size()), label.view(-1))
+                batch_loss += loss.item()
 
-            writer.add_scalar('train.loss', loss.item(), global_step)
-            writer.flush()
-
-            loss.backward()
+                loss.backward()
 
             optimizer.step()
             optimizer.zero_grad()
 
+            #Logging
+            batch_iterator.set_postfix({f"loss": f"{loss.item():6.3f}"})
+            writer.add_scalar('train.loss', loss.item(), global_step)
+            writer.flush()
             global_step += 1
 
         run_validation(model, val_dataloder, tokenizer_src, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)

@@ -25,8 +25,9 @@ class LearnedPositionalEncoding(nn.Module):
         self.embedding = nn.Embedding(block_size, d_model)
 
     def forward(self, x):
-        x = x.long()
-        x = self.embedding(x)
+        _, seq,_ = x.shape
+        pos_emb = self.embedding(torch.arange(seq, device='cuda' if torch.cuda.is_available() else 'mps'))
+        x = x + pos_emb
         return self.dropout(x)
 
 
@@ -93,11 +94,11 @@ class MultiHeadAttention(nn.Module):
 
 
     def forward(self, x, mask, print_msg):
-        print_msg(str(x.shape))
+        print_msg(f"step 4 : {str(x.shape)}")
         query = self.w_q(x) # q = (Batch, block_size, d_model), w_q = (Batch, d_model, d_model), query = (Batch, block_size, d_model)
         key = self.w_k(x) # k = (Batch, block_size, d_model), w_k = (Batch, d_model, d_model), key = (Batch, block_size, d_model)
         value = self.w_v(x) # v = (Batch, block_size, d_model), w_v = (Batch, d_model, d_model), value = (Batch, block_size, d_model)
-        print_msg(str(x.shape))
+        print_msg(f"step 5 : {str(x.shape)}")
         # (Batch, block_size, d_model) --> (Batch, block_size, h, d_k) --> (Batch, h, block_size, d_k)
         query = query.view(query.shape[0], query.shape[1], self.h, self.d_k).transpose(1, 2)
         key = key.view(key.shape[0], key.shape[1], self.h, self.d_k).transpose(1, 2)
@@ -154,9 +155,11 @@ class ProjectionLayer(nn.Module):
 
     def __init__(self, d_model: int, vocab_size: int):
         super().__init__()
+        self.vocab_size = vocab_size
         self.proj = nn.Linear(d_model, vocab_size)
 
-    def forward(self, x):
+    def forward(self, x, print_msg):
+        print_msg(str(self.vocab_size))
         # batch, block_size, d_model --> batch, block_size, vocab_size
         return torch.log_softmax(self.proj(x), dim = -1)
 
@@ -172,12 +175,16 @@ class Transformer(nn.Module):
         self.projection_layer = projection_layer
 
     def decode(self, x, mask, print_msg):
+        print_msg(f"step 1 : {str(x.shape)}")
         x = self.src_embed(x)
+        print_msg(f"step 2 : {str(x.shape)}")
         x = self.src_pos(x)
+        print_msg(f"step 3 : {str(x.shape)}")
         return self.decoder(x, mask, print_msg)
 
-    def project(self, x):
-        return self.projection_layer(x)
+    def project(self, x, print_msg):
+        print_msg(f"step 6 : {str(x.shape)}")
+        return self.projection_layer(x, print_msg)
 
 def build_transformer(src_vocab_size: int, src_block_size: int, d_model: int = 512, N: int = 6, h: int = 8, dropout: float = 0.1):
 
@@ -193,7 +200,7 @@ def build_transformer(src_vocab_size: int, src_block_size: int, d_model: int = 5
     decoder = Decoder(N, d_model, h, src_block_size, dropout)
 
     # create the projection layer
-    projection_layer = ProjectionLayer(d_model, src_block_size)
+    projection_layer = ProjectionLayer(d_model, src_vocab_size)
 
     # Create the transformer
     transformer = Transformer(decoder, src_embed, src_pos, projection_layer)

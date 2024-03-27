@@ -172,6 +172,7 @@ def get_ds(config):
     return train_dataloader, val_dataloder, tokenizer_src
 
 def get_model(config, vocab_src_len):
+    print(vocab_src_len)
     model = build_transformer(vocab_src_len, config['seq_len'], config['d_model'])
     return model
 
@@ -221,8 +222,10 @@ def train_model(config):
                 label = labels[:, i, :]
 
                 decoder_output = model.decode(input, mask, lambda msg: batch_iterator.write(msg))
-                proj_output = model.project(decoder_output)
+                proj_output = model.project(decoder_output, lambda msg: batch_iterator.write(msg))
 
+                batch_iterator.write(f"Projection Shape : {proj_output.shape}")
+                batch_iterator.write(f"Label Shape : {label.shape}")
                 loss = loss_fn(proj_output.view(-1, tokenizer_src.get_vocab_size()), label.view(-1))
                 batch_loss += loss.item()
 

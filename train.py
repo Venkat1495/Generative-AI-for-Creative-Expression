@@ -185,7 +185,7 @@ def train_model(config):
                 mask = masks[:, i, :, :]
                 label = labels[:, i, :]
 
-                decoder_output = model.decode(input, mask)
+                decoder_output = model.decode(input, mask, lambda msg: batch_iterator.write(msg))
                 proj_output = model.project(decoder_output)
 
                 loss = loss_fn(proj_output.view(-1, tokenizer_src.get_vocab_size()), label.view(-1))

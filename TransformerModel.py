@@ -92,11 +92,12 @@ class MultiHeadAttention(nn.Module):
 
 
 
-    def forward(self, x, mask):
+    def forward(self, x, mask, print_msg):
+        print_msg(x.shape)
         query = self.w_q(x) # q = (Batch, block_size, d_model), w_q = (Batch, d_model, d_model), query = (Batch, block_size, d_model)
         key = self.w_k(x) # k = (Batch, block_size, d_model), w_k = (Batch, d_model, d_model), key = (Batch, block_size, d_model)
         value = self.w_v(x) # v = (Batch, block_size, d_model), w_v = (Batch, d_model, d_model), value = (Batch, block_size, d_model)
-
+        print_msg(query.shape)
         # (Batch, block_size, d_model) --> (Batch, block_size, h, d_k) --> (Batch, h, block_size, d_k)
         query = query.view(query.shape[0], query.shape[1], self.h, self.d_k).transpose(1, 2)
         key = key.view(key.shape[0], key.shape[1], self.h, self.d_k).transpose(1, 2)
@@ -130,8 +131,8 @@ class DecoderBlock(nn.Module):
         self.feed_forward_block = FeedForwardBlock(d_model, dropout)
         self.residual_connections = nn.ModuleList([ResidualConnection(d_model, dropout) for _ in range(2)])
 
-    def forward(self, x, mask):
-        x = self.residual_connections[0](x, lambda x: self.self_attention_block(x, mask))
+    def forward(self, x, mask, print_msg):
+        x = self.residual_connections[0](x, lambda x: self.self_attention_block(x, mask, print_msg))
         x = self.residual_connections[1](x, self.feed_forward_block)
         return x
 
@@ -170,10 +171,10 @@ class Transformer(nn.Module):
         self.src_pos = src_pos
         self.projection_layer = projection_layer
 
-    def decode(self, x, mask):
+    def decode(self, x, mask, print_msg):
         x = self.src_embed(x)
         x = self.src_pos(x)
-        return self.decoder(x, mask)
+        return self.decoder(x, mask, print_msg)
 
     def project(self, x):
         return self.projection_layer(x)

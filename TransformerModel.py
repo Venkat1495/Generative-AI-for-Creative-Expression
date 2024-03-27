@@ -93,11 +93,11 @@ class MultiHeadAttention(nn.Module):
 
 
     def forward(self, x, mask, print_msg):
-        print_msg(x.shape)
+        print_msg(str(x.shape))
         query = self.w_q(x) # q = (Batch, block_size, d_model), w_q = (Batch, d_model, d_model), query = (Batch, block_size, d_model)
         key = self.w_k(x) # k = (Batch, block_size, d_model), w_k = (Batch, d_model, d_model), key = (Batch, block_size, d_model)
         value = self.w_v(x) # v = (Batch, block_size, d_model), w_v = (Batch, d_model, d_model), value = (Batch, block_size, d_model)
-        print_msg(query.shape)
+        print_msg(str(x.shape))
         # (Batch, block_size, d_model) --> (Batch, block_size, h, d_k) --> (Batch, h, block_size, d_k)
         query = query.view(query.shape[0], query.shape[1], self.h, self.d_k).transpose(1, 2)
         key = key.view(key.shape[0], key.shape[1], self.h, self.d_k).transpose(1, 2)
@@ -144,9 +144,9 @@ class Decoder(nn.Module):
         self.decoder_blocks = nn.ModuleList([DecoderBlock(d_model, h, block_size, dropout) for _ in range(layers)])
         self.norm = PTLayerNormalization(d_model)
 
-    def forward(self, x, mask):
+    def forward(self, x, mask, print_msg):
         for layer in self.decoder_blocks:
-            x = layer(x, mask)
+            x = layer(x, mask, print_msg)
         return self.norm(x)
 
 

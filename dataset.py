@@ -27,8 +27,8 @@ class SongsDataset(Dataset):
         src_text = src_traget_pair['text']
 
         input_tokens = self.tokenizer_src.encode(src_text).ids
-        input_padding = 1200 - len(input_tokens)
-        input_tokens += [self.pad_token] * input_padding
+        # input_padding = 1200 - len(input_tokens)
+        # input_tokens += [self.pad_token] * input_padding
 
         # Initialize segments
         input_segments = []
@@ -48,13 +48,15 @@ class SongsDataset(Dataset):
 
             segment_tensor = torch.tensor(segment, dtype=torch.int64)
             label_tensor = torch.tensor(label, dtype=torch.int64)
-            mask = [1] * (len(segment_tokens) + len(next_token) + 2) + [
-                0] * num_padding  # Mask includes [SOS] and [EOS]
-            mask_tensor = torch.tensor(mask, dtype=torch.long).unsqueeze(0).unsqueeze(0)
+
+            mask = (segment_tensor != self.pad_token).unsqueeze(0).int() & causal_mask(segment_tensor.size(0))
+            # # mask = [1] * (len(segment_tokens) + len(next_token) + 2) + [
+            # #     0] * num_padding  # Mask includes [SOS] and [EOS]
+            # mask_tensor = torch.tensor(mask, dtype=torch.long)  # .unsqueeze(0).unsqueeze(0)
 
             input_segments.append(segment_tensor)
             label_segments.append(label_tensor)
-            masks.append(mask_tensor)
+            masks.append(mask)
 
         # Ensure input_segments and masks are tensors (possibly stacked)
         input_segments_tensor = torch.stack(input_segments)
@@ -93,4 +95,6 @@ class SongsDataset(Dataset):
         }
 
 
-
+def causal_mask(size):
+    mask = torch.triu(torch.ones((1, size, size)), diagonal=1).type(torch.int)
+    return mask == 0

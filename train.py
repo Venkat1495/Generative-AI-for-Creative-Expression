@@ -6,7 +6,7 @@ import pandas as pd
 from torch.utils.data import Dataset, DataLoader, random_split
 
 from datasets import Dataset as d
-from dataset import SongsDataset
+from dataset import SongsDataset, causal_mask
 from TransformerModel import build_transformer
 from config import get_config, get_weights_file_path
 
@@ -58,20 +58,22 @@ from tqdm import tqdm
 
 
 
-def greedy_decode(model, source, source_mask, tokenizer, max_len, device):
+def greedy_decode(model, source, source_mask, tokenizer, max_len, device, print_msg):
     sos_idx = tokenizer.token_to_id('[SOS]')
     eos_idx = tokenizer.token_to_id('[EOS]')
-
+    print_msg(str(source.shape))
     # initialize the decoder input with the sos token
     decoder_input = torch.empty(1, 1).fill_(sos_idx).type_as(source).to(device)
     while True:
         if decoder_input.size(1) == max_len:
             break
+        # print_msg(str(decoder_input.shape))
+        decoder_mask = causal_mask(decoder_input.size(1)).type_as(source_mask).to(device)
 
-        out = model.decode(decoder_input, source_mask)
+        out = model.decode(decoder_input, decoder_mask, print_msg)
 
         # Get the next token
-        prob = model.project(out[:, -1])
+        prob = model.project(out[:, -1], print_msg)
         _, next_word = torch.max(prob, dim=1)
         decoder_input = torch.cat([decoder_input, torch.empty(1, 1).type_as(source).fill_(next_word.item()).to(device)], dim=1)
 
@@ -101,8 +103,9 @@ def run_validation(model, validation_ds, tokenizer, max_len, device, print_msg, 
             for i in range(inputs.size(1)):
                 input = inputs[:, i, :]
                 mask = masks[:, i, :, :]
-                model_out = greedy_decode(model, input, mask, tokenizer, max_len, device)
-
+                # print_msg(str(mask.shape))
+                model_out = greedy_decode(model, input, mask, tokenizer, max_len, device, print_msg)
+                # print_msg(str(model_out))
                 source_text = batch['src_text'][0]
 
                 model_out_text = tokenizer.decode(model_out.detach().cpu().numpy())
@@ -145,7 +148,7 @@ def get_ds(config):
     # ds_raw = load_dataset('opus_books', f'{config["lang_src"]}-{config["lang_tgt"]}', split='train')
     ds_raw = pd.read_csv(config['path'])
     ds_raw = d.from_pandas(ds_raw)
-    print(type(ds_raw))
+    # print(type(ds_raw))
 
     # Build tokenizers
     tokenizer_src = get_or_build_tokenizer(config, ds_raw)
@@ -164,7 +167,7 @@ def get_ds(config):
         src_ids = tokenizer_src.encode(item['text']).ids
         max_len_src = max(max_len_src, len(src_ids))
 
-    print(f'Max length of source sentence: {max_len_src}')
+    # print(f'Max length of source sentence: {max_len_src}')
 
     train_dataloader = DataLoader(train_ds, batch_size=config['batch_size'], shuffle=True)
     val_dataloder = DataLoader(val_ds, batch_size=1, shuffle=True)
@@ -172,7 +175,7 @@ def get_ds(config):
     return train_dataloader, val_dataloder, tokenizer_src
 
 def get_model(config, vocab_src_len):
-    print(vocab_src_len)
+    # print(vocab_src_len)
     model = build_transformer(vocab_src_len, config['seq_len'], config['d_model'])
     return model
 
@@ -196,7 +199,7 @@ def train_model(config):
     global_step = 0
     if config['preload']:
         model_filename = get_weights_file_path(config, config['preload'])
-        print(f'Preloading model {model_filename}')
+        # print(f'Preloading model {model_filename}')
         state = torch.load(model_filename)
         initial_epoch = state['epoch'] + 1
         optimizer.load_state_dict(state['optimizer_state_dict'])
@@ -220,12 +223,12 @@ def train_model(config):
                 input = inputs[:, i, :]
                 mask = masks[:, i, :, :]
                 label = labels[:, i, :]
-
+                # batch_iterator.write(f"train loop mask Shape : {mask.shape}")
                 decoder_output = model.decode(input, mask, lambda msg: batch_iterator.write(msg))
                 proj_output = model.project(decoder_output, lambda msg: batch_iterator.write(msg))
 
-                batch_iterator.write(f"Projection Shape : {proj_output.shape}")
-                batch_iterator.write(f"Label Shape : {label.shape}")
+                # batch_iterator.write(f"Projection Shape : {proj_output.shape}")
+                # batch_iterator.write(f"Label Shape : {label.shape}")
                 loss = loss_fn(proj_output.view(-1, tokenizer_src.get_vocab_size()), label.view(-1))
                 batch_loss += loss.item()
 
@@ -240,7 +243,7 @@ def train_model(config):
             writer.flush()
             global_step += 1
 
-        run_validation(model, val_dataloder, tokenizer_src, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
+            run_validation(model, val_dataloder, tokenizer_src, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
 
         model_filename = get_weights_file_path(config, f'{epoch:02d}')
         torch.save({

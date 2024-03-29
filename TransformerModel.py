@@ -71,40 +71,46 @@ class MultiHeadAttention(nn.Module):
         self.w_k = nn.Linear(d_model, d_model) # wk
         self.w_v = nn.Linear(d_model, d_model) # wv
         self.w_o = nn.Linear(d_model, d_model) # wo
-        self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
+        # self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
         self.dropout = nn.Dropout(dropout)
 
     @staticmethod
-    def attention(query, key, value, mask, dropout: nn.Dropout, tril, block_size):
+    def attention(query, key, value, mask, dropout: nn.Dropout, block_size, print_msg):
         d_k = query.shape[-1]
 
         # (Batch, h, block_size, d_k) --> (Batch, h, block_size, block_size)
         attention_scores = (query @ key.transpose(-2, -1)) / math.sqrt(d_k)
         # For encoder we can remove the below mask as we are having only decoder for this transformer we have only decoder in this model
-        attention_scores = attention_scores.masked_fill(tril[:block_size, :block_size] == 0, float('-inf'))
+        # tril = torch.tril(torch.ones(block_size, block_size, device='cuda' if torch.cuda.is_available() else 'mps', dtype=torch.bool))
+        # attention_scores = attention_scores.masked_fill(~tril[:block_size, :block_size] == 0, float('-inf'))
         # Apply padding mask
         if mask is not None:
-            attention_scores = attention_scores.masked_fill(mask == 0, float('-inf'))
+            attention_scores = attention_scores.masked_fill(mask == 0, -1e9)
         attention_scores = attention_scores.softmax(dim=-1) # Batch, h, block_size, block_size
         if dropout is not None:
             attention_scores = dropout(attention_scores)
+        # print_msg(str(attention_scores.shape))
+        # print_msg(f"value Shape : {value.shape}")
         # (Batch, h, block_size, block_size) --> (Batch, h, block_size, d_k)
-        return (attention_scores @ value), attention_scores
+        x = attention_scores @ value
+        # print_msg(str(x.shape))
+        return x, attention_scores
 
 
 
     def forward(self, x, mask, print_msg):
-        print_msg(f"step 4 : {str(x.shape)}")
+        # print_msg(f"step 4 : {str(x.shape)}")
+        _, block_size, _ = x.shape
         query = self.w_q(x) # q = (Batch, block_size, d_model), w_q = (Batch, d_model, d_model), query = (Batch, block_size, d_model)
         key = self.w_k(x) # k = (Batch, block_size, d_model), w_k = (Batch, d_model, d_model), key = (Batch, block_size, d_model)
         value = self.w_v(x) # v = (Batch, block_size, d_model), w_v = (Batch, d_model, d_model), value = (Batch, block_size, d_model)
-        print_msg(f"step 5 : {str(x.shape)}")
+        # print_msg(f"step 5  value: {str(value.shape)}")
         # (Batch, block_size, d_model) --> (Batch, block_size, h, d_k) --> (Batch, h, block_size, d_k)
         query = query.view(query.shape[0], query.shape[1], self.h, self.d_k).transpose(1, 2)
         key = key.view(key.shape[0], key.shape[1], self.h, self.d_k).transpose(1, 2)
         value = value.view(value.shape[0], value.shape[1], self.h, self.d_k).transpose(1, 2)
 
-        x, self.attention_scores = MultiHeadAttention.attention(query, key, value, mask, self.dropout, self.tril, self.block_size)
+        x, self.attention_scores = MultiHeadAttention.attention(query, key, value, mask, self.dropout, block_size, print_msg)
 
         # (Batch, h, block_size, d_k) --> (Batch, block_size, h, d_k) --> (Batch, block_size, d_model)
         x = x.transpose(1, 2).contiguous().view(x.shape[0], -1, self.h * self.d_k)
@@ -159,7 +165,7 @@ class ProjectionLayer(nn.Module):
         self.proj = nn.Linear(d_model, vocab_size)
 
     def forward(self, x, print_msg):
-        print_msg(str(self.vocab_size))
+        # print_msg(str(self.vocab_size))
         # batch, block_size, d_model --> batch, block_size, vocab_size
         return torch.log_softmax(self.proj(x), dim = -1)
 
@@ -175,15 +181,15 @@ class Transformer(nn.Module):
         self.projection_layer = projection_layer
 
     def decode(self, x, mask, print_msg):
-        print_msg(f"step 1 : {str(x.shape)}")
+        # print_msg(f"step 1 : {str(x.shape)}")
         x = self.src_embed(x)
-        print_msg(f"step 2 : {str(x.shape)}")
+        # print_msg(f"step 2 : {str(x.shape)}")
         x = self.src_pos(x)
-        print_msg(f"step 3 : {str(x.shape)}")
+        # print_msg(f"step 3 : {str(x.shape)}")
         return self.decoder(x, mask, print_msg)
 
     def project(self, x, print_msg):
-        print_msg(f"step 6 : {str(x.shape)}")
+        # print_msg(f"step 6 : {str(x.shape)}")
         return self.projection_layer(x, print_msg)
 
 def build_transformer(src_vocab_size: int, src_block_size: int, d_model: int = 512, N: int = 6, h: int = 8, dropout: float = 0.1):

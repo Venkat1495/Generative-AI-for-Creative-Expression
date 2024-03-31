@@ -57,71 +57,98 @@ from tqdm import tqdm
 #     return {'inputs': batched_inputs, 'masks': batched_masks, 'labels': batched_labels, 'src_text': batched_texts}
 
 
+#
+# def greedy_decode(model, source, source_mask, tokenizer, max_len, device, print_msg):
+#     sos_idx = tokenizer.token_to_id('[SOS]')
+#     eos_idx = tokenizer.token_to_id('[EOS]')
+#     print_msg(str(source.shape))
+#     # initialize the decoder input with the sos token
+#     decoder_input = torch.empty(1, 1).fill_(sos_idx).type_as(source).to(device)
+#     while True:
+#         if decoder_input.size(1) == max_len:
+#             break
+#         # print_msg(str(decoder_input.shape))
+#         decoder_mask = causal_mask(decoder_input.size(1)).type_as(source_mask).to(device)
+#
+#         out = model.decode(decoder_input, decoder_mask, print_msg)
+#
+#         # Get the next token
+#         prob = model.project(out[:, -1], print_msg)
+#         _, next_word = torch.max(prob, dim=1)
+#         decoder_input = torch.cat([decoder_input, torch.empty(1, 1).type_as(source).fill_(next_word.item()).to(device)], dim=1)
+#
+#         if next_word == eos_idx:
+#             break
+#
+#     return decoder_input.squeeze(0)
+#
+#
+#
+# def run_validation(model, validation_ds, tokenizer, max_len, device, print_msg, global_state, writer, num_examples=2):
+#     model.eval()
+#     count = 0
+#
+#     source_texts = []
+#     predicted = []
+#
+#
+#     console_width = 80
+#
+#     with torch.no_grad():
+#         for batch in validation_ds:
+#             count += 1
+#             inputs = batch['inputs'].to(device)
+#             masks = batch['masks'].to(device)
+#
+#             for i in range(inputs.size(1)):
+#                 input = inputs[:, i, :]
+#                 mask = masks[:, i, :, :]
+#                 # print_msg(str(mask.shape))
+#                 model_out = greedy_decode(model, input, mask, tokenizer, max_len, device, print_msg)
+#                 # print_msg(str(model_out))
+#                 source_text = batch['src_text'][0]
+#
+#                 model_out_text = tokenizer.decode(model_out.detach().cpu().numpy())
+#
+#                 source_texts.append(source_text)
+#                 predicted.append(model_out_text)
+#
+#                 # print to the console
+#                 print_msg('-'*console_width)
+#                 print_msg(f'SOURCE: {source_text}')
+#                 print_msg(f'PREDICTED: {model_out_text}')
+#
+#             if count == num_examples:
+#                 print_msg('-' * console_width)
+#                 break
 
-def greedy_decode(model, source, source_mask, tokenizer, max_len, device, print_msg):
-    sos_idx = tokenizer.token_to_id('[SOS]')
-    eos_idx = tokenizer.token_to_id('[EOS]')
-    print_msg(str(source.shape))
-    # initialize the decoder input with the sos token
-    decoder_input = torch.empty(1, 1).fill_(sos_idx).type_as(source).to(device)
-    while True:
-        if decoder_input.size(1) == max_len:
-            break
-        # print_msg(str(decoder_input.shape))
-        decoder_mask = causal_mask(decoder_input.size(1)).type_as(source_mask).to(device)
-
-        out = model.decode(decoder_input, decoder_mask, print_msg)
-
-        # Get the next token
-        prob = model.project(out[:, -1], print_msg)
-        _, next_word = torch.max(prob, dim=1)
-        decoder_input = torch.cat([decoder_input, torch.empty(1, 1).type_as(source).fill_(next_word.item()).to(device)], dim=1)
-
-        if next_word == eos_idx:
-            break
-
-    return decoder_input.squeeze(0)
 
 
+def validate_model(model, val_dataloader, loss_fn, device):
+    model.eval()  # Set model to evaluation mode
+    total_val_loss = 0
+    total_segments = 0
 
-def run_validation(model, validation_ds, tokenizer, max_len, device, print_msg, global_state, writer, num_examples=2):
-    model.eval()
-    count = 0
-
-    source_texts = []
-    predicted = []
-
-
-    console_width = 80
-
-    with torch.no_grad():
-        for batch in validation_ds:
-            count += 1
+    with torch.no_grad():  # Disable gradient computation
+        for batch in val_dataloader:
             inputs = batch['inputs'].to(device)
             masks = batch['masks'].to(device)
+            labels = batch['labels'].to(device)
 
-            for i in range(inputs.size(1)):
+            for i in range(inputs.size(1)):  # Iterate over segments
                 input = inputs[:, i, :]
                 mask = masks[:, i, :, :]
-                # print_msg(str(mask.shape))
-                model_out = greedy_decode(model, input, mask, tokenizer, max_len, device, print_msg)
-                # print_msg(str(model_out))
-                source_text = batch['src_text'][0]
+                label = labels[:, i, :]
 
-                model_out_text = tokenizer.decode(model_out.detach().cpu().numpy())
+                decoder_output = model.decode(input, mask)
+                proj_output = model.project(decoder_output)
 
-                source_texts.append(source_text)
-                predicted.append(model_out_text)
+                loss = loss_fn(proj_output.view(-1, model.vocab_size), label.view(-1))
+                total_val_loss += loss.item()
+                total_segments += 1  # Count segments for averaging
 
-                # print to the console
-                print_msg('-'*console_width)
-                print_msg(f'SOURCE: {source_text}')
-                print_msg(f'PREDICTED: {model_out_text}')
-
-            if count == num_examples:
-                print_msg('-' * console_width)
-                break
-
+    average_val_loss = total_val_loss / total_segments
+    return average_val_loss
 
 
 
@@ -197,20 +224,26 @@ def train_model(config):
 
     initial_epoch = 0
     global_step = 0
-    if config['preload']:
-        model_filename = get_weights_file_path(config, config['preload'])
-        # print(f'Preloading model {model_filename}')
+    preload = config['preload']
+    model_filename = get_weights_file_path(config) if preload == 'latest' else None
+    if model_filename:
+        print(f'Preloading model {model_filename}')
         state = torch.load(model_filename)
+        model.load_state_dict(state['model_state_dict'])
         initial_epoch = state['epoch'] + 1
         optimizer.load_state_dict(state['optimizer_state_dict'])
         global_step = state['global_step']
+    else:
+        print('No model to preload')
 
+    best_val_loss = float('inf')  # Initialize best validation loss to infinity
     loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_src.token_to_id('[PAD]'), label_smoothing= 0.1).to(device)
 
     for epoch in range(initial_epoch, config['num_epochs']):
-
+        model.train()
         batch_iterator = tqdm(train_dataloader, desc=f'Precessing epoch {epoch:02d}')
-
+        total_loss = 0  # For accumulating loss over the entire epoch
+        total_segments = 0
         for batch in batch_iterator:
             model.train()
 
@@ -218,7 +251,8 @@ def train_model(config):
             masks = batch['masks'].to(device)
             labels = batch['labels'].to(device)
 
-            batch_loss = 0
+            batch_loss = 0 # Accumulate loss for this batch
+
             for i in range(inputs.size(1)):
                 input = inputs[:, i, :]
                 mask = masks[:, i, :, :]
@@ -230,28 +264,40 @@ def train_model(config):
                 # batch_iterator.write(f"Projection Shape : {proj_output.shape}")
                 # batch_iterator.write(f"Label Shape : {label.shape}")
                 loss = loss_fn(proj_output.view(-1, tokenizer_src.get_vocab_size()), label.view(-1))
-                batch_loss += loss.item()
-
-                loss.backward()
-
+                batch_loss += loss
+                total_segments += 1
+            total_loss += batch_loss.item()  # Accumulate loss over the epoch
+            batch_loss.backward()
+            # Average or sum the loss across segments here if desired
             optimizer.step()
             optimizer.zero_grad()
 
             #Logging
-            batch_iterator.set_postfix({f"loss": f"{loss.item():6.3f}"})
-            writer.add_scalar('train.loss', loss.item(), global_step)
+            batch_iterator.set_postfix({f"loss": f"{batch_loss.item():6.3f}"})
+            writer.add_scalar('train.loss', batch_loss.item(), global_step)
             writer.flush()
             global_step += 1
 
-            run_validation(model, val_dataloder, tokenizer_src, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
+        # run_validation(model, val_dataloder, tokenizer_src, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
+        # Example usage
+        # After processing all batches
+        epoch_loss = total_loss / len(train_dataloader)  # Calculate average loss for the epoch
+        batch_iterator.set_postfix(f"Epoch {epoch}: Loss = {epoch_loss:.4f}")
 
-        model_filename = get_weights_file_path(config, f'{epoch:02d}')
-        torch.save({
-            'epoch': epoch,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'global_step': global_step
-        }, model_filename)
+        average_val_loss = validate_model(model, val_dataloder, loss_fn, device)
+        batch_iterator.set_postfix(val_loss=f"{average_val_loss:.4f}")
+
+        # Check if the current validation loss is the best we've seen so far
+        if average_val_loss < best_val_loss:
+            print(f"Validation loss decreased ({best_val_loss:.4f} --> {average_val_loss:.4f}). Saving model...")
+            best_val_loss = average_val_loss  # Update the best validation loss
+            model_filename = get_weights_file_path(config, f'{epoch:02d}')
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'global_step': global_step
+            }, model_filename)
 
 if __name__ == '__main__':
     warnings.filterwarnings('ignore')
@@ -262,4 +308,4 @@ if __name__ == '__main__':
 
 
 
-test
+

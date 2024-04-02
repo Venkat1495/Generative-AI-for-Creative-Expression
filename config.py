@@ -14,9 +14,9 @@ def get_config():
         "path": 'data/spotify_millsongdata.csv'
     }
 
-def get_weights_file_path(config, epoch: str):
+def get_weights_file_path(config):
     model_folder = config['model_folder']
-    model_filename = config['model_filename']
+    model_filename = f"{config['model_filename']}*"
     weights_files = list(Path(model_folder).glob(model_filename))
     if len(weights_files) == 0:
         return None

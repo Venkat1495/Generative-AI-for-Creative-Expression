@@ -124,7 +124,7 @@ from tqdm import tqdm
 
 
 
-def validate_model(model, val_dataloader, loss_fn, device):
+def validate_model(model, val_dataloader, loss_fn, device, print_msg, tokenizer_src):
     model.eval()  # Set model to evaluation mode
     total_val_loss = 0
     total_segments = 0
@@ -140,10 +140,10 @@ def validate_model(model, val_dataloader, loss_fn, device):
                 mask = masks[:, i, :, :]
                 label = labels[:, i, :]
 
-                decoder_output = model.decode(input, mask)
-                proj_output = model.project(decoder_output)
+                decoder_output = model.decode(input, mask, print_msg)
+                proj_output = model.project(decoder_output, print_msg)
 
-                loss = loss_fn(proj_output.view(-1, model.vocab_size), label.view(-1))
+                loss = loss_fn(proj_output.view(-1, tokenizer_src.get_vocab_size()), label.view(-1))
                 total_val_loss += loss.item()
                 total_segments += 1  # Count segments for averaging
 
@@ -244,15 +244,15 @@ def train_model(config):
         batch_iterator = tqdm(train_dataloader, desc=f'Precessing epoch {epoch:02d}')
         total_loss = 0  # For accumulating loss over the entire epoch
         total_segments = 0
-        for batch in batch_iterator:
+        for j, batch in enumerate(batch_iterator):
             model.train()
 
             inputs = batch['inputs'].to(device)
             masks = batch['masks'].to(device)
             labels = batch['labels'].to(device)
 
-            batch_loss = 0 # Accumulate loss for this batch
 
+            losses = torch.zeros(inputs.size(1))
             for i in range(inputs.size(1)):
                 input = inputs[:, i, :]
                 mask = masks[:, i, :, :]
@@ -264,40 +264,58 @@ def train_model(config):
                 # batch_iterator.write(f"Projection Shape : {proj_output.shape}")
                 # batch_iterator.write(f"Label Shape : {label.shape}")
                 loss = loss_fn(proj_output.view(-1, tokenizer_src.get_vocab_size()), label.view(-1))
-                batch_loss += loss
+                loss.backward()
+                losses[i] += loss.item()
                 total_segments += 1
-            total_loss += batch_loss.item()  # Accumulate loss over the epoch
-            batch_loss.backward()
+
+            segment_loss = losses.mean()  # Accumulate loss over the epoch
             # Average or sum the loss across segments here if desired
             optimizer.step()
-            optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True)
+            average_val_loss = 0
+            # if global_step % 10000 == 0 and global_step != 0:
+            #     average_val_loss = validate_model(model, val_dataloder, loss_fn, device, lambda msg: batch_iterator.write(msg), tokenizer_src)
+            #
+            # if global_step % 10000 == 0 and average_val_loss < best_val_loss and global_step != 0:
+            #     print(f"Validation loss decreased ({best_val_loss:.4f} --> {average_val_loss:.4f}). Saving model...")
+            #     best_val_loss = average_val_loss  # Update the best validation loss
+            #     model_folder = f"{config['model_folder']}"
+            #     model_filename = f"{config['model_filename']}{epoch}_{global_step}.pt"
+            #     model_filename = str(Path('.') / model_folder / model_filename)
+            #     torch.save({
+            #         'epoch': epoch,
+            #         'model_state_dict': model.state_dict(),
+            #         'optimizer_state_dict': optimizer.state_dict(),
+            #         'global_step': global_step
+            #     }, model_filename)
 
             #Logging
-            batch_iterator.set_postfix({f"loss": f"{batch_loss.item():6.3f}"})
-            writer.add_scalar('train.loss', batch_loss.item(), global_step)
+
+            batch_iterator.set_postfix({f"loss": f"{segment_loss.item():6.3f}" , "val_loss": f"{average_val_loss:.4f}"})
+            writer.add_scalar('train.loss', segment_loss.item(), global_step)
+            writer.add_scalar('val.loss', average_val_loss, global_step)
             writer.flush()
             global_step += 1
 
-        # run_validation(model, val_dataloder, tokenizer_src, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
-        # Example usage
-        # After processing all batches
-        epoch_loss = total_loss / len(train_dataloader)  # Calculate average loss for the epoch
-        batch_iterator.set_postfix(f"Epoch {epoch}: Loss = {epoch_loss:.4f}")
-
-        average_val_loss = validate_model(model, val_dataloder, loss_fn, device)
-        batch_iterator.set_postfix(val_loss=f"{average_val_loss:.4f}")
-
-        # Check if the current validation loss is the best we've seen so far
-        if average_val_loss < best_val_loss:
+        average_val_loss = validate_model(model, val_dataloder, loss_fn, device,
+                                              lambda msg: batch_iterator.write(msg), tokenizer_src)
+        if average_val_loss < best_val_loss and average_val_loss < 2:
             print(f"Validation loss decreased ({best_val_loss:.4f} --> {average_val_loss:.4f}). Saving model...")
             best_val_loss = average_val_loss  # Update the best validation loss
-            model_filename = get_weights_file_path(config, f'{epoch:02d}')
+            model_folder = f"{config['model_folder']}"
+            model_filename = f"{config['model_filename']}{epoch}_{global_step}.pt"
+            model_filename = str(Path('.') / model_folder / model_filename)
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'global_step': global_step
             }, model_filename)
+
+        # run_validation(model, val_dataloder, tokenizer_src, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
+        # Example usage
+        # After processing all batches
+
 
 if __name__ == '__main__':
     warnings.filterwarnings('ignore')

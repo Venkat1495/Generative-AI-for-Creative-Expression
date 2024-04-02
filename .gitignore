@@ -1,2 +1,2 @@
-weights/tmodel_00.pt
-weights/tmodel_01.pt
+weights/*
+runs/tmodel/*

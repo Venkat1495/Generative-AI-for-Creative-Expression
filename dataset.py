@@ -39,8 +39,8 @@ class SongsDataset(Dataset):
         for i in range(0, len(input_tokens), self.max_seq_len):
             segment_tokens = input_tokens[i:i + self.max_seq_len]
             next_token = [input_tokens[i + self.max_seq_len]] if (i + self.max_seq_len) < len(input_tokens) else []
-            segment = [self.sos_token] + segment_tokens + next_token + [self.eos_token]
-            label = [self.sos_token] + segment_tokens + next_token + [self.eos_token]  # Labels don't include [SOS] at the start
+            segment = [self.sos_token] + segment_tokens + next_token
+            label = segment_tokens + next_token + [self.eos_token]  # Labels don't include [SOS] at the start
 
             num_padding = self.max_seq_len + 2 - len(segment) + 1  # Adjusting padding calculation
             segment += [self.pad_token] * num_padding

@@ -1,17 +1,20 @@
 from pathlib import Path
 def get_config():
     return {
-        "batch_size": 1,
-        "num_epochs": 1,
-        "lr": 10**-4,
+        "batch_size": 16,
+        "num_epochs": 10,
+        "lr": 3e-4, # 10**-4,
         "seq_len": 300,
+        "segment_len": 301,
+        "max_seq_len": 1204,
         "d_model": 512,
         "model_folder": "weights",
         "model_filename": "tmodel_",
         "preload": None,
         "tokenizer_file": "tokenizer.json",
         "experiment_name": "runs/tmodel",
-        "path": 'data/spotify_millsongdata.csv'
+        "path": 'data/spotify_millsongdata.csv',
+        "generate_input": "My heart is falling in love"
     }
 
 def get_weights_file_path(config):

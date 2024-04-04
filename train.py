@@ -1,12 +1,14 @@
 import warnings
 
+import numpy as np
 import torch
 import torch.nn as nn
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader, random_split
 
 from datasets import Dataset as d
-from dataset import SongsDataset, causal_mask
+# from dataset import SongsDataset, causal_mask
+from dataset_practice import SongsDataset, causal_mask
 from TransformerModel import build_transformer
 from config import get_config, get_weights_file_path
 
@@ -122,32 +124,74 @@ from tqdm import tqdm
 #                 print_msg('-' * console_width)
 #                 break
 
+def generate(device, tokenizer, model, input, print_msg, max_length: int = 100):
+    # Define the device and load configurations
+    # device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+    # print("Using device:", device)
+    # config = get_config()
+    #
+    # # Initialize the tokenizer and model
+    # tokenizer = Tokenizer.from_file(str(Path(config['tokenizer_file'])))
+    # model = build_transformer(tokenizer.get_vocab_size(), config['seq_len'], config['d_model']).to(device)
+    #
+    # # Load the pretrained weights
+    # model_filename = get_weights_file_path(config)  # Update function name as needed
+    # state = torch.load(model_filename)
+    # state_dic = state['model_state_dict']
+    # model.load_state_dict(state_dic)
+
+    # model.eval()
+    with torch.no_grad():
+        # Encode the seed text
+        encoded_input = tokenizer.encode(input).ids
+        input_ids = torch.tensor([tokenizer.token_to_id('[SOS]')] + encoded_input, dtype=torch.int64).unsqueeze(0).to(
+            device)
+
+        # Generation loop
+        for _ in range(max_length - len(encoded_input)):
+
+            # mask = (input_ids != tokenizer.token_to_id('[PAD]')).unsqueeze(0).int() & causal_mask(input_ids.size(1), device) # Update or create a mask if your model requires it
+            mask = torch.tril(torch.ones((1, input_ids.size(1), input_ids.size(1))), diagonal=1).type(torch.int).to(
+                device)
+
+            output = model.decode(input_ids, mask, print_msg)  # Adjust this call based on your model's method signature
+            proj_output = model.project(output[:, -1, :], print_msg)  # Adjust if necessary to match your model's output format
+            # idx_next = torch.multinomial(proj_output, num_samples=1)
+            # print(tokenizer.decode(proj_output[0].tolist()))
+            # # Get the next token (you might want to sample instead of using argmax for more diversity)
+            _, idx_next = torch.max(proj_output, dim=1)
+            input_ids = torch.cat([input_ids, torch.tensor([[idx_next]], dtype=torch.int64).to(device)], dim=1)
+
+            # print the translated word
+            print(f"{tokenizer.decode([idx_next])}", end=' ')
+            # Break if [EOS]
+            if idx_next == tokenizer.token_to_id('[EOS]'):
+                break
+
+        # Decode the generated IDs to text
+        generated_text = tokenizer.decode(input_ids[0].tolist())
+        print(f"\nGenerated song:\n{generated_text}")
 
 
 def validate_model(model, val_dataloader, loss_fn, device, print_msg, tokenizer_src):
-    model.eval()  # Set model to evaluation mode
-    total_val_loss = 0
-    total_segments = 0
+    total_val_loss = []
 
     with torch.no_grad():  # Disable gradient computation
-        for batch in val_dataloader:
-            inputs = batch['inputs'].to(device)
-            masks = batch['masks'].to(device)
-            labels = batch['labels'].to(device)
+        for i, batch in enumerate(val_dataloader):
+            input = batch['input'].to(device)
+            mask = batch['mask'].to(device)
+            label = batch['label'].to(device)
 
-            for i in range(inputs.size(1)):  # Iterate over segments
-                input = inputs[:, i, :]
-                mask = masks[:, i, :, :]
-                label = labels[:, i, :]
+            decoder_output = model.decode(input, mask, print_msg)
+            proj_output = model.project(decoder_output, print_msg)
 
-                decoder_output = model.decode(input, mask, print_msg)
-                proj_output = model.project(decoder_output, print_msg)
+            loss = loss_fn(proj_output.view(-1, tokenizer_src.get_vocab_size()), label.view(-1))
+            if not torch.isnan(loss):
+                total_val_loss.append(loss.item())
+                # print(f"validation loss : {loss.item()}")
 
-                loss = loss_fn(proj_output.view(-1, tokenizer_src.get_vocab_size()), label.view(-1))
-                total_val_loss += loss.item()
-                total_segments += 1  # Count segments for averaging
-
-    average_val_loss = total_val_loss / total_segments
+    average_val_loss = np.mean(total_val_loss)
+    print(f"average validation loss : {average_val_loss}")
     return average_val_loss
 
 
@@ -171,33 +215,89 @@ def get_or_build_tokenizer(config, ds):
         tokenizer = Tokenizer.from_file(str(tokenizer_path))
     return tokenizer
 
+def get_segments(config, input, num_segments):
+    # Add padding to ensure the length meets a multiple of max_seq_len
+    if len(input) % config['segment_len'] == 0:
+        # print(len(input))
+        # # Split into segments of length max_seq_len
+        # num_segments = len(input) // config['segment_len']
+        input_segments = []
+
+        for i in range(num_segments):
+            start_idx = i * config['segment_len']
+            end_idx = start_idx + config['segment_len']
+            input_segment = input[start_idx:end_idx]
+            input_segments.append(input_segment)
+    else:
+        print("Padding is not matching, please check")
+    return input_segments
+
+def get_data(config, tokenizer_src, ds_raw):
+    sos_token = tokenizer_src.token_to_id("[SOS]")
+    eos_token = tokenizer_src.token_to_id('[EOS]')
+    pad_token = tokenizer_src.token_to_id('[PAD]')
+    inputs = []
+
+    for item in ds_raw['text']:
+        input_tokens = tokenizer_src.encode(item).ids
+        input_length = len(input_tokens)
+
+        # Adjust config['max_seq_len'] based on input tokens length
+        if input_length <= 299:
+            config['max_seq_len'] = 301
+            num_segments = 1
+        elif 299 < input_length <= 600:
+            config['max_seq_len'] = 602
+            num_segments = 2
+        elif 600 < input_length <= 901:
+            config['max_seq_len'] = 903
+            num_segments = 3
+        elif 901 < input_length <= 1202:  # For input_length > 901 and up to 1204
+            config['max_seq_len'] = 1204
+            num_segments = 4
+        # print(len(input_tokens))
+        dec_num_padding_tokens = config['max_seq_len'] - len(input_tokens) - 2
+
+
+        input = [sos_token] + input_tokens +  [eos_token] + [pad_token] * dec_num_padding_tokens
+        # print(len(input))
+        inputs.extend(get_segments(config, input, num_segments))
+
+    return d.from_dict({"text": inputs})
+
+
+
 def get_ds(config):
     # ds_raw = load_dataset('opus_books', f'{config["lang_src"]}-{config["lang_tgt"]}', split='train')
     ds_raw = pd.read_csv(config['path'])
     ds_raw = d.from_pandas(ds_raw)
-    # print(type(ds_raw))
 
     # Build tokenizers
     tokenizer_src = get_or_build_tokenizer(config, ds_raw)
 
+    ds_raw = get_data(config, tokenizer_src, ds_raw)
+    print(ds_raw[0])
     # keep 90% for training and 10% for validation
+    # Keep 90% for training, 10% for validation
     train_ds_size = int(0.9 * len(ds_raw))
     val_ds_size = len(ds_raw) - train_ds_size
-    train_ds_raw, val_ds_raw = random_split(ds_raw, [train_ds_size, val_ds_size])
+    train_ds_size, val_ds_size = random_split(ds_raw, [train_ds_size, val_ds_size])
 
-    train_ds = SongsDataset(train_ds_raw, tokenizer_src, config['seq_len'])
-    val_ds = SongsDataset(val_ds_raw, tokenizer_src, config['seq_len'])
+    # train_ds_raw, val_ds_raw = random_split(ds_raw, [train_ds_size, val_ds_size])
 
-    max_len_src = 0
+    train_ds = SongsDataset(train_ds_size, tokenizer_src, config['seq_len'])
+    val_ds = SongsDataset(val_ds_size, tokenizer_src, config['seq_len'])
 
-    for item in ds_raw:
-        src_ids = tokenizer_src.encode(item['text']).ids
-        max_len_src = max(max_len_src, len(src_ids))
+    # max_len_src = 0
+
+    # for item in ds_raw:
+    #     src_ids = tokenizer_src.encode(item['text']).ids
+    #     max_len_src = max(max_len_src, len(src_ids))
 
     # print(f'Max length of source sentence: {max_len_src}')
 
-    train_dataloader = DataLoader(train_ds, batch_size=config['batch_size'], shuffle=True)
-    val_dataloder = DataLoader(val_ds, batch_size=1, shuffle=True)
+    train_dataloader = DataLoader(train_ds, batch_size=config['batch_size'], shuffle=False)
+    val_dataloder = DataLoader(val_ds, batch_size=1, shuffle=False)
 
     return train_dataloader, val_dataloder, tokenizer_src
 
@@ -205,6 +305,11 @@ def get_model(config, vocab_src_len):
     # print(vocab_src_len)
     model = build_transformer(vocab_src_len, config['seq_len'], config['d_model'])
     return model
+
+
+
+
+
 
 def train_model(config):
 
@@ -242,41 +347,60 @@ def train_model(config):
     for epoch in range(initial_epoch, config['num_epochs']):
         model.train()
         batch_iterator = tqdm(train_dataloader, desc=f'Precessing epoch {epoch:02d}')
-        total_loss = 0  # For accumulating loss over the entire epoch
-        total_segments = 0
+        total_loss = []  # For accumulating loss over the entire epoch
+        # total_segments = 0
+
         for j, batch in enumerate(batch_iterator):
             model.train()
 
-            inputs = batch['inputs'].to(device)
-            masks = batch['masks'].to(device)
-            labels = batch['labels'].to(device)
+            input = batch['input'].to(device)
+            mask = batch['mask'].to(device)
+            label = batch['label'].to(device)
 
+            decoder_output = model.decode(input, mask, lambda msg: batch_iterator.write(msg))
+            proj_output = model.project(decoder_output, lambda msg: batch_iterator.write(msg))
 
-            losses = torch.zeros(inputs.size(1))
-            for i in range(inputs.size(1)):
-                input = inputs[:, i, :]
-                mask = masks[:, i, :, :]
-                label = labels[:, i, :]
-                # batch_iterator.write(f"train loop mask Shape : {mask.shape}")
-                decoder_output = model.decode(input, mask, lambda msg: batch_iterator.write(msg))
-                proj_output = model.project(decoder_output, lambda msg: batch_iterator.write(msg))
+            loss = loss_fn(proj_output.view(-1, tokenizer_src.get_vocab_size()), label.view(-1))
 
-                # batch_iterator.write(f"Projection Shape : {proj_output.shape}")
-                # batch_iterator.write(f"Label Shape : {label.shape}")
-                loss = loss_fn(proj_output.view(-1, tokenizer_src.get_vocab_size()), label.view(-1))
-                loss.backward()
-                losses[i] += loss.item()
-                total_segments += 1
-
-            segment_loss = losses.mean()  # Accumulate loss over the epoch
-            # Average or sum the loss across segments here if desired
+            if torch.isnan(loss):
+                print(f"Loss is NaN. Skipping...batch number : {j}")
+                continue
+            loss.backward()
+            total_loss.append(loss.item())
             optimizer.step()
             optimizer.zero_grad(set_to_none=True)
-            average_val_loss = 0
-            # if global_step % 10000 == 0 and global_step != 0:
-            #     average_val_loss = validate_model(model, val_dataloder, loss_fn, device, lambda msg: batch_iterator.write(msg), tokenizer_src)
+
+
+
+            # losses = torch.zeros(inputs.size(1))
+            # for i in range(inputs.size(1)):
+            #     input = inputs[:, i, :]
+            #     mask = masks[:, i, :, :]
+            #     label = labels[:, i, :]
+            #     # batch_iterator.write(f"train loop mask Shape : {mask.shape}")
+            #     decoder_output = model.decode(input, mask, lambda msg: batch_iterator.write(msg))
+            #     proj_output = model.project(decoder_output, lambda msg: batch_iterator.write(msg))
             #
-            # if global_step % 10000 == 0 and average_val_loss < best_val_loss and global_step != 0:
+            #     # batch_iterator.write(f"Projection Shape : {proj_output.shape}")
+            #     # batch_iterator.write(f"Label Shape : {label.shape}")
+            #     loss = loss_fn(proj_output.view(-1, tokenizer_src.get_vocab_size()), label.view(-1))
+            #     loss.backward()
+            #     losses[i] += loss.item()
+            #     total_segments += 1
+
+            # segment_loss = losses.mean()  # Accumulate loss over the epoch
+            # # Average or sum the loss across segments here if desired
+            # optimizer.step()
+            # optimizer.zero_grad(set_to_none=True)
+
+
+            average_val_loss = 0
+            # if j % 500 == 0 and j != 0:
+            #     model.eval()
+            #     average_val_loss = validate_model(model, val_dataloder, loss_fn, device, lambda msg: batch_iterator.write(msg), tokenizer_src)
+            #     model.train()
+            #
+            # if j % 500 == 0 and average_val_loss < best_val_loss and j != 0:
             #     print(f"Validation loss decreased ({best_val_loss:.4f} --> {average_val_loss:.4f}). Saving model...")
             #     best_val_loss = average_val_loss  # Update the best validation loss
             #     model_folder = f"{config['model_folder']}"
@@ -291,15 +415,19 @@ def train_model(config):
 
             #Logging
 
-            batch_iterator.set_postfix({f"loss": f"{segment_loss.item():6.3f}" , "val_loss": f"{average_val_loss:.4f}"})
-            writer.add_scalar('train.loss', segment_loss.item(), global_step)
+            batch_iterator.set_postfix({f"loss": f"{loss.item():6.3f}" , "val_loss": f"{average_val_loss:.4f}"})
+            writer.add_scalar('train.loss', loss.item(), global_step)
             writer.add_scalar('val.loss', average_val_loss, global_step)
             writer.flush()
             global_step += 1
 
+        model.eval()
         average_val_loss = validate_model(model, val_dataloder, loss_fn, device,
                                               lambda msg: batch_iterator.write(msg), tokenizer_src)
-        if average_val_loss < best_val_loss and average_val_loss < 2:
+        model.train()
+        print(f"End of Epoch: {epoch}. Final Validation Loss : {average_val_loss}. Final training loss: {np.mean(total_loss)}")
+
+        if average_val_loss < best_val_loss :
             print(f"Validation loss decreased ({best_val_loss:.4f} --> {average_val_loss:.4f}). Saving model...")
             best_val_loss = average_val_loss  # Update the best validation loss
             model_folder = f"{config['model_folder']}"
@@ -312,6 +440,9 @@ def train_model(config):
                 'global_step': global_step
             }, model_filename)
 
+        model.eval()
+        generate(device, tokenizer_src, model, config['generate_input'], lambda msg: batch_iterator.write(msg), 50)
+        model.train()
         # run_validation(model, val_dataloder, tokenizer_src, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
         # Example usage
         # After processing all batches

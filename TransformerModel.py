@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import math
-
+from torch.nn import functional as F
 class InputEmbeddings(nn.Module):
 
     def __init__(self, d_model: int, vocab_size: int):
@@ -71,21 +71,24 @@ class MultiHeadAttention(nn.Module):
         self.w_k = nn.Linear(d_model, d_model) # wk
         self.w_v = nn.Linear(d_model, d_model) # wv
         self.w_o = nn.Linear(d_model, d_model) # wo
-        # self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
+        self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)).view(1, 1, block_size, block_size))
+        # self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
+        #                      .view(1, 1, config.block_size, config.block_size))
+
         self.dropout = nn.Dropout(dropout)
 
     @staticmethod
-    def attention(query, key, value, mask, dropout: nn.Dropout, block_size, print_msg):
+    def attention(tril, query, key, value, dropout: nn.Dropout, block_size):
         d_k = query.shape[-1]
 
         # (Batch, h, block_size, d_k) --> (Batch, h, block_size, block_size)
         attention_scores = (query @ key.transpose(-2, -1)) / math.sqrt(d_k)
         # For encoder we can remove the below mask as we are having only decoder for this transformer we have only decoder in this model
         # tril = torch.tril(torch.ones(block_size, block_size, device='cuda' if torch.cuda.is_available() else 'mps', dtype=torch.bool))
-        # attention_scores = attention_scores.masked_fill(~tril[:block_size, :block_size] == 0, float('-inf'))
+        attention_scores = attention_scores.masked_fill(tril[:, :, :block_size, :block_size] == 0, float('-inf'))
         # Apply padding mask
-        if mask is not None:
-            attention_scores = attention_scores.masked_fill(mask == 0, -1e9)
+        # if mask is not None:
+        #     attention_scores = attention_scores.masked_fill(mask == 0, -1e9)
         attention_scores = attention_scores.softmax(dim=-1) # Batch, h, block_size, block_size
         if dropout is not None:
             attention_scores = dropout(attention_scores)
@@ -98,7 +101,7 @@ class MultiHeadAttention(nn.Module):
 
 
 
-    def forward(self, x, mask, print_msg):
+    def forward(self, x):
         # print_msg(f"step 4 : {str(x.shape)}")
         _, block_size, _ = x.shape
         query = self.w_q(x) # q = (Batch, block_size, d_model), w_q = (Batch, d_model, d_model), query = (Batch, block_size, d_model)
@@ -110,7 +113,7 @@ class MultiHeadAttention(nn.Module):
         key = key.view(key.shape[0], key.shape[1], self.h, self.d_k).transpose(1, 2)
         value = value.view(value.shape[0], value.shape[1], self.h, self.d_k).transpose(1, 2)
 
-        x, self.attention_scores = MultiHeadAttention.attention(query, key, value, mask, self.dropout, block_size, print_msg)
+        x, self.attention_scores = MultiHeadAttention.attention(self.tril, query, key, value, self.dropout, block_size)
 
         # (Batch, h, block_size, d_k) --> (Batch, block_size, h, d_k) --> (Batch, block_size, d_model)
         x = x.transpose(1, 2).contiguous().view(x.shape[0], -1, self.h * self.d_k)
@@ -138,8 +141,8 @@ class DecoderBlock(nn.Module):
         self.feed_forward_block = FeedForwardBlock(d_model, dropout)
         self.residual_connections = nn.ModuleList([ResidualConnection(d_model, dropout) for _ in range(2)])
 
-    def forward(self, x, mask, print_msg):
-        x = self.residual_connections[0](x, lambda x: self.self_attention_block(x, mask, print_msg))
+    def forward(self, x):
+        x = self.residual_connections[0](x, lambda x: self.self_attention_block(x))
         x = self.residual_connections[1](x, self.feed_forward_block)
         return x
 
@@ -151,9 +154,9 @@ class Decoder(nn.Module):
         self.decoder_blocks = nn.ModuleList([DecoderBlock(d_model, h, block_size, dropout) for _ in range(layers)])
         self.norm = PTLayerNormalization(d_model)
 
-    def forward(self, x, mask, print_msg):
+    def forward(self, x):
         for layer in self.decoder_blocks:
-            x = layer(x, mask, print_msg)
+            x = layer(x)
         return self.norm(x)
 
 
@@ -162,12 +165,13 @@ class ProjectionLayer(nn.Module):
     def __init__(self, d_model: int, vocab_size: int):
         super().__init__()
         self.vocab_size = vocab_size
-        self.proj = nn.Linear(d_model, vocab_size)
+        self.proj = nn.Linear(d_model, vocab_size, bias=False)
 
-    def forward(self, x, print_msg):
+    def forward(self, x):
         # print_msg(str(self.vocab_size))
         # batch, block_size, d_model --> batch, block_size, vocab_size
-        return torch.log_softmax(self.proj(x), dim = -1)
+        # torch.log_softmax(self.proj(x), dim = -1)
+        return self.proj(x)
 
 
 
@@ -180,17 +184,55 @@ class Transformer(nn.Module):
         self.src_pos = src_pos
         self.projection_layer = projection_layer
 
-    def decode(self, x, mask, print_msg):
+    def decode(self, x, label = None):
         # print_msg(f"step 1 : {str(x.shape)}")
         x = self.src_embed(x)
         # print_msg(f"step 2 : {str(x.shape)}")
         x = self.src_pos(x)
         # print_msg(f"step 3 : {str(x.shape)}")
-        return self.decoder(x, mask, print_msg)
+        x = self.decoder(x)
 
-    def project(self, x, print_msg):
-        # print_msg(f"step 6 : {str(x.shape)}")
-        return self.projection_layer(x, print_msg)
+        if label is not None:
+            x = self.projection_layer(x)
+            loss = F.cross_entropy(x.view(-1, x.size(-1)), label.view(-1), ignore_index=-1)
+        else:
+            x = self.projection_layer(x[:, [-1], :])
+            loss = None
+
+        return x, loss
+
+    @torch.no_grad()
+    def generate(self, input, max_new_tokens, temperature=1.0):
+        """
+        Take a conditioning sequence of indices idx (LongTensor of shape (b,t)) and complete
+        the sequence max_new_tokens times, feeding the predictions back into the model each time.
+        Most likely you'll want to make sure to be in model.eval() mode of operation for this.
+        """
+        for _ in range(max_new_tokens):
+
+            # forward the model to get the logits for the index in the sequence
+            logits, _ = Transformer(input)
+            # pluck the logits at the final step and scale by desired temperature
+            logits = logits[:, -1, :] / temperature
+
+            # apply softmax to convert logits to (normalized) probabilities
+            probs = torch.Softmax(logits, dim=-1)
+            # sample from the distribution
+            idx_next = torch.multinomial(probs, num_samples=1)
+            # append sampled index to the running sequence and continue
+            idx = torch.cat((input, idx_next), dim=1)
+
+        return idx
+
+    # def project(self, x, label):
+    #     # print_msg(f"step 6 : {str(x.shape)}")
+    #
+    #     if label is not None:
+    #         x = self.projection_layer(x)
+    #         loss = nn.CrossEntropyLoss(x.view(-1, x.size(-1)), label.view(-1), ignore_index=-1)
+    #     else:
+    #         x = self.projection_layer(x[:, [-1], :])
+    #     return x, loss
 
 def build_transformer(src_vocab_size: int, src_block_size: int, d_model: int = 512, N: int = 6, h: int = 8, dropout: float = 0.1):
 

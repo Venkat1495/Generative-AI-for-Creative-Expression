@@ -8,11 +8,12 @@ from torch.utils.data import Dataset, DataLoader, random_split
 
 from datasets import Dataset as d
 # from dataset import SongsDataset, causal_mask
-from dataset_practice import SongsDataset, causal_mask
+from dataset_practice import SongsDataset
 from TransformerModel import build_transformer
 from config import get_config, get_weights_file_path
 
 from datasets import load_dataset
+import tiktoken
 from tokenizers import Tokenizer
 from tokenizers.models import WordLevel
 from tokenizers.trainers import WordLevelTrainer
@@ -173,19 +174,19 @@ def generate(device, tokenizer, model, input, print_msg, max_length: int = 100):
         print(f"\nGenerated song:\n{generated_text}")
 
 
-def validate_model(model, val_dataloader, loss_fn, device, print_msg, tokenizer_src):
+def validate_model(model, val_dataloader, device):
     total_val_loss = []
 
     with torch.no_grad():  # Disable gradient computation
         for i, batch in enumerate(val_dataloader):
             input = batch['input'].to(device)
-            mask = batch['mask'].to(device)
+            # mask = batch['mask'].to(device)
             label = batch['label'].to(device)
 
-            decoder_output = model.decode(input, mask, print_msg)
-            proj_output = model.project(decoder_output, print_msg)
+            output, loss = model.decode(input, label)
+            # proj_output = model.project(decoder_output, print_msg)
 
-            loss = loss_fn(proj_output.view(-1, tokenizer_src.get_vocab_size()), label.view(-1))
+            # loss = loss_fn(proj_output.view(-1, tokenizer_src.get_vocab_size()), label.view(-1))
             if not torch.isnan(loss):
                 total_val_loss.append(loss.item())
                 # print(f"validation loss : {loss.item()}")
@@ -232,14 +233,30 @@ def get_segments(config, input, num_segments):
         print("Padding is not matching, please check")
     return input_segments
 
+def get_combin_segments(data, segment_size = 301):
+    # Segment the data
+    seg_len = len(data) // segment_size
+    segmented_data = [data[i:i + segment_size] for i in range(seg_len)]
+    # Convert the segmented data into a Hugging Face dataset
+    dataset = d.from_dict({'text': segmented_data})
+    input_length = []
+    for item in dataset['text']:
+        input_length.append(len(item))
+    count_less_than_100 = len([x for x in input_length if x < 301])
+    count_100_to_200 = len([x for x in input_length if 302 <= x])
+    print(count_less_than_100)
+    print(count_100_to_200)
+    return dataset
+
+
 def get_data(config, tokenizer_src, ds_raw):
-    sos_token = tokenizer_src.token_to_id("[SOS]")
+    sos_token = tokenizer_src.token_to_id('[SOS]')
     eos_token = tokenizer_src.token_to_id('[EOS]')
     pad_token = tokenizer_src.token_to_id('[PAD]')
     inputs = []
 
     for item in ds_raw['text']:
-        input_tokens = tokenizer_src.encode(item).ids
+        input_tokens = tokenizer_src.encode_ordinary(item)
         input_length = len(input_tokens)
 
         # Adjust config['max_seq_len'] based on input tokens length
@@ -266,24 +283,50 @@ def get_data(config, tokenizer_src, ds_raw):
     return d.from_dict({"text": inputs})
 
 
+def get_combine_data(ds_raw, tokenizer, sos_token="<|startoftext|>", eos_token="<|endoftext|>"):
+
+    # input = []
+
+    # Modify each item in the 'text' column to include SOS and EOS tokens
+    ds_raw['text'] = ds_raw['text'].apply(lambda x: sos_token + x + eos_token)
+
+    data = ds_raw['text'].str.cat(sep='\n')
+
+    data = tokenizer.encode_ordinary(data)
+
+
+    return data
 
 def get_ds(config):
     # ds_raw = load_dataset('opus_books', f'{config["lang_src"]}-{config["lang_tgt"]}', split='train')
     ds_raw = pd.read_csv(config['path'])
-    ds_raw = d.from_pandas(ds_raw)
+    # ds_raw = d.from_pandas(ds_raw)
 
     # Build tokenizers
-    tokenizer_src = get_or_build_tokenizer(config, ds_raw)
+    # tokenizer_src = get_or_build_tokenizer(config, ds_raw)
+    tokenizer_src = tiktoken.get_encoding("gpt2")
 
-    ds_raw = get_data(config, tokenizer_src, ds_raw)
-    print(ds_raw[0])
-    # keep 90% for training and 10% for validation
-    # Keep 90% for training, 10% for validation
-    train_ds_size = int(0.9 * len(ds_raw))
-    val_ds_size = len(ds_raw) - train_ds_size
-    train_ds_size, val_ds_size = random_split(ds_raw, [train_ds_size, val_ds_size])
+    # ds_raw = get_data(config, tokenizer_src, ds_raw)
+
+    ds_raw = get_combine_data(ds_raw, tokenizer_src)
+    ds_raw = get_combin_segments(ds_raw)
+
+
+    # # keep 90% for training and 10% for validation
+    # # Keep 90% for training, 10% for validation
+    # train_ds_size = int(0.9 * len(ds_raw))
+    # val_ds_size = len(ds_raw) - train_ds_size
+    # train_ds_size, val_ds_size = random_split(ds_raw, [train_ds_size, val_ds_size])
 
     # train_ds_raw, val_ds_raw = random_split(ds_raw, [train_ds_size, val_ds_size])
+
+    # Assuming ds_raw is a Dataset object
+    total_size = len(ds_raw)
+    train_size = int(0.9 * total_size)
+    val_size = total_size - train_size
+
+    # Split the dataset
+    train_ds_size, val_ds_size = random_split(ds_raw, [train_size, val_size])
 
     train_ds = SongsDataset(train_ds_size, tokenizer_src, config['seq_len'])
     val_ds = SongsDataset(val_ds_size, tokenizer_src, config['seq_len'])
@@ -320,7 +363,7 @@ def train_model(config):
     Path(config['model_folder']).mkdir(parents=True, exist_ok=True)
 
     train_dataloader, val_dataloder, tokenizer_src = get_ds(config)
-    model = get_model(config, tokenizer_src.get_vocab_size()).to(device)
+    model = get_model(config, vocab_src_len=50304).to(device) # tokenizer_src.get_vocab_size()
 
     # Tensorboard
     writer = SummaryWriter(config['experiment_name'])
@@ -342,7 +385,7 @@ def train_model(config):
         print('No model to preload')
 
     best_val_loss = float('inf')  # Initialize best validation loss to infinity
-    loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_src.token_to_id('[PAD]'), label_smoothing= 0.1).to(device)
+    # loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_src.token_to_id('[PAD]'), label_smoothing= 0.1).to(device)
 
     for epoch in range(initial_epoch, config['num_epochs']):
         model.train()
@@ -354,13 +397,14 @@ def train_model(config):
             model.train()
 
             input = batch['input'].to(device)
-            mask = batch['mask'].to(device)
+            # mask = batch['mask'].to(device)
             label = batch['label'].to(device)
 
-            decoder_output = model.decode(input, mask, lambda msg: batch_iterator.write(msg))
-            proj_output = model.project(decoder_output, lambda msg: batch_iterator.write(msg))
+            output, loss = model.decode(input, label)
+            # proj_output = model.project(decoder_output, lambda msg: batch_iterator.write(msg))
 
-            loss = loss_fn(proj_output.view(-1, tokenizer_src.get_vocab_size()), label.view(-1))
+            # loss = nn.CrossEntropyLoss(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
+                # loss_fn(proj_output.view(-1, tokenizer_src.get_vocab_size()), label.view(-1))
 
             if torch.isnan(loss):
                 print(f"Loss is NaN. Skipping...batch number : {j}")
@@ -422,8 +466,8 @@ def train_model(config):
             global_step += 1
 
         model.eval()
-        average_val_loss = validate_model(model, val_dataloder, loss_fn, device,
-                                              lambda msg: batch_iterator.write(msg), tokenizer_src)
+        average_val_loss = validate_model(model, val_dataloder, device)
+                                              # lambda msg: batch_iterator.write(msg), tokenizer_src)
         model.train()
         print(f"End of Epoch: {epoch}. Final Validation Loss : {average_val_loss}. Final training loss: {np.mean(total_loss)}")
 
@@ -441,7 +485,9 @@ def train_model(config):
             }, model_filename)
 
         model.eval()
-        generate(device, tokenizer_src, model, config['generate_input'], lambda msg: batch_iterator.write(msg), 50)
+        y = model.generate(config['generate_input'],50)
+        print(tokenizer_src.decode(y[0].tolist()))
+        # generate(device, tokenizer_src, model, config['generate_input'], lambda msg: batch_iterator.write(msg), 50)
         model.train()
         # run_validation(model, val_dataloder, tokenizer_src, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
         # Example usage

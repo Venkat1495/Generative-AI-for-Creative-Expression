@@ -102,12 +102,12 @@ def get_model(config, vocab_src_len):
 
 
 
-def cheking_point(model, val_dataloder, epoch, global_step, optimizer, tokenizer_src, device, config):
+def cheking_point(model, val_dataloder, epoch, global_step, optimizer, tokenizer_src, device):
 
     model.eval()
     average_val_loss = validate_model(model, val_dataloder, device)
     model.train()
-
+    config = get_config()
     # best_val_loss = average_val_loss  # Update the best validation loss
     model_folder = f"{config['model_folder']}"
     model_filename = f"{config['model_filename']}_{epoch}.pt"
@@ -195,8 +195,8 @@ def train_model(config):
 
 
 
-            # if j % 2000 == 0 and j != 0:
-            #     average_val_loss, best_val_loss = cheking_point(model, val_dataloder, epoch, global_step, optimizer, tokenizer_src, device, best_val_loss)
+            if  j == 0: # j % 2000 == 0 and
+                average_val_loss, best_val_loss = cheking_point(model, val_dataloder, epoch, global_step, optimizer, tokenizer_src, device, best_val_loss)
 
             #Logging
 
@@ -206,7 +206,7 @@ def train_model(config):
             writer.flush()
             global_step += 1
 
-        average_val_loss = cheking_point(model, val_dataloder, epoch, global_step, optimizer, tokenizer_src, device, config)
+        average_val_loss = cheking_point(model, val_dataloder, epoch, global_step, optimizer, tokenizer_src, device)
 
         print(f"End of Epoch: {epoch}. Final Validation Loss : {average_val_loss}. Final training loss: {np.mean(total_loss)}")
 

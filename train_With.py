@@ -195,7 +195,7 @@ def train_model(config):
 
 
 
-            if  j == 0: # j % 2000 == 0 and
+            if  j % 2000 == 0: # j % 2000 == 0 and
                 average_val_loss, best_val_loss = cheking_point(model, val_dataloder, epoch, global_step, optimizer, tokenizer_src, device, best_val_loss)
 
             #Logging

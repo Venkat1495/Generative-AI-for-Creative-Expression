@@ -217,5 +217,3 @@ input = tokenizer_src.encode_ordinary(idx)
 idx = (torch.tensor(input, dtype=torch.long, device=device)[None, ...])
 # idx = torch.zeros((1, 1), dtype=torch.long, device=device)
 print(tokenizer_src.decode(m.generate(idx, max_new_tokens=500)[0].tolist()))
-
-

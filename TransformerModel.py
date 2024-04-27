@@ -201,7 +201,7 @@ class Transformer(nn.Module):
         return x, loss
 
     @torch.no_grad()
-    def generate(self, config, input, max_new_tokens, temperature=1.0):
+    def generate(self, config, input, max_new_tokens, tokenizer, temperature=1.0):
         """
         Take a conditioning sequence of indices idx (LongTensor of shape (b,t)) and complete
         the sequence max_new_tokens times, feeding the predictions back into the model each time.
@@ -223,11 +223,14 @@ class Transformer(nn.Module):
             probs = torch.softmax(logits, dim=-1)
             # sample from the distribution
             input_next = torch.multinomial(probs, num_samples=1)
+
             # print(f"Input next generate next word: {input_next}")
             # append sampled index to the running sequence and continue
             input = torch.cat((input, input_next), dim=1)
+            if "[EOS]" in tokenizer.decode(input_cut[0].tolist()):
+                break
 
-        print(f"Input in generate after concatenate: {input}")
+        # print(f"Input in generate after concatenate: {input}")
 
         return input
 

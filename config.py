@@ -1,19 +1,19 @@
 from pathlib import Path
 def get_config():
     return {
-        "batch_size": 12,
-        "num_epochs": 5,
+        "batch_size": 32,
+        "num_epochs": 9,
         "lr": 1e-3, # 10**-4,  1e-3   3e-4
         "seq_len": 64,
         "segment_len": 65,
         "max_seq_len": 1204,
         "d_model": 384,
         "model_folder": "weights",
-        "model_filename": "tmodel_",
+        "model_filename": "Song_Parameter", # "tmodel_",
         "preload": 'latest',
         "tokenizer_file": "tokenizer.json",
         "experiment_name": "runs/tmodel",
-        "path": 'data/spotify_millsongdata.csv',
+        "path": 'Data',
         "generate_input": f"Title: Watching Over Me; Tag: pop; Artist: Canadian Tenors;\n\n" + "Lyrics: \n"
     }
 

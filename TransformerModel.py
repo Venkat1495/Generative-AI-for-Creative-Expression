@@ -8,11 +8,10 @@ class InputEmbeddings(nn.Module):
         super().__init__()
         self.d_model = d_model
         self.vocab_size = vocab_size
-        print(self.vocab_size)
         self.embedding = nn.Embedding(vocab_size, d_model)
 
     def forward(self, x):
-        return self.embedding(x) * math.sqrt(self.d_model)
+        return self.embedding(x) #* math.sqrt(self.d_model)
 
 
 class LearnedPositionalEncoding(nn.Module):
@@ -21,14 +20,14 @@ class LearnedPositionalEncoding(nn.Module):
         super().__init__()
         self.d_model = d_model
         self.block_size = block_size
-        self.dropout = nn.Dropout(dropout)
+        # self.dropout = nn.Dropout(dropout)
         self.embedding = nn.Embedding(block_size, d_model)
 
-    def forward(self, x):
+    def forward(self, x, device):
         _, seq,_ = x.shape
-        pos_emb = self.embedding(torch.arange(seq, device='cuda' if torch.cuda.is_available() else 'mps'))
+        pos_emb = self.embedding(torch.arange(0, seq, dtype=torch.long, device=device))
         x = x + pos_emb
-        return self.dropout(x)
+        return x
 
 
 class PTLayerNormalization(nn.Module):
@@ -47,7 +46,7 @@ class FeedForwardBlock(nn.Module):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(d_model, 4 * d_model),
-            nn.ReLU(),
+            nn.GELU(),
             nn.Linear(4 * d_model, d_model),
             nn.Dropout(dropout),
         )
@@ -101,12 +100,12 @@ class MultiHeadAttention(nn.Module):
 
 
 
-    def forward(self, x):
+    def forward(self, q, k, v):
         # print_msg(f"step 4 : {str(x.shape)}")
-        _, block_size, _ = x.shape
-        query = self.w_q(x) # q = (Batch, block_size, d_model), w_q = (Batch, d_model, d_model), query = (Batch, block_size, d_model)
-        key = self.w_k(x) # k = (Batch, block_size, d_model), w_k = (Batch, d_model, d_model), key = (Batch, block_size, d_model)
-        value = self.w_v(x) # v = (Batch, block_size, d_model), w_v = (Batch, d_model, d_model), value = (Batch, block_size, d_model)
+        _, block_size, _ = q.shape
+        query = self.w_q(q) # q = (Batch, block_size, d_model), w_q = (Batch, d_model, d_model), query = (Batch, block_size, d_model)
+        key = self.w_k(k) # k = (Batch, block_size, d_model), w_k = (Batch, d_model, d_model), key = (Batch, block_size, d_model)
+        value = self.w_v(v) # v = (Batch, block_size, d_model), w_v = (Batch, d_model, d_model), value = (Batch, block_size, d_model)
         # print_msg(f"step 5  value: {str(value.shape)}")
         # (Batch, block_size, d_model) --> (Batch, block_size, h, d_k) --> (Batch, h, block_size, d_k)
         query = query.view(query.shape[0], query.shape[1], self.h, self.d_k).transpose(1, 2)
@@ -130,32 +129,31 @@ class ResidualConnection(nn.Module):
         self.norm = PTLayerNormalization(d_model)
 
     def forward(self, x, sublayer):
-        return x + self.dropout(sublayer(self.norm(x)))
+        return x + sublayer(self.norm(x))
 
 
 class DecoderBlock(nn.Module):
 
-    def __init__(self, d_model, h, block_size, dropout: float):
+    def __init__(self, d_model, Decoder_self_attention, Feed_forward_block, dropout: float):
         super().__init__()
-        self.self_attention_block = MultiHeadAttention(d_model, h, dropout, block_size)
-        self.feed_forward_block = FeedForwardBlock(d_model, dropout)
+        self.self_attention_block = Decoder_self_attention
+        self.feed_forward_block = Feed_forward_block
         self.residual_connections = nn.ModuleList([ResidualConnection(d_model, dropout) for _ in range(2)])
 
     def forward(self, x):
-        x = self.residual_connections[0](x, lambda x: self.self_attention_block(x))
+        x = self.residual_connections[0](x, lambda x: self.self_attention_block(x, x, x))
         x = self.residual_connections[1](x, self.feed_forward_block)
         return x
 
 class Decoder(nn.Module):
 
-    def __init__(self, layers: int, d_model: int, h: int, block_size: int, dropout: float):
+    def __init__(self, d_model: int, layers: nn.ModuleList):
         super().__init__()
         self.layers = layers
-        self.decoder_blocks = nn.ModuleList([DecoderBlock(d_model, h, block_size, dropout) for _ in range(layers)])
         self.norm = PTLayerNormalization(d_model)
 
     def forward(self, x):
-        for layer in self.decoder_blocks:
+        for layer in self.layers:
             x = layer(x)
         return self.norm(x)
 
@@ -186,9 +184,10 @@ class Transformer(nn.Module):
 
     def decode(self, x, label = None):
         # print_msg(f"step 1 : {str(x.shape)}")
+        device = x.device
         x = self.src_embed(x)
         # print_msg(f"step 2 : {str(x.shape)}")
-        x = self.src_pos(x)
+        x = self.src_pos(x, device)
         # print_msg(f"step 3 : {str(x.shape)}")
         x = self.decoder(x)
 
@@ -202,27 +201,35 @@ class Transformer(nn.Module):
         return x, loss
 
     @torch.no_grad()
-    def generate(self, input, max_new_tokens, temperature=1.0):
+    def generate(self, config, input, max_new_tokens, temperature=1.0):
         """
         Take a conditioning sequence of indices idx (LongTensor of shape (b,t)) and complete
         the sequence max_new_tokens times, feeding the predictions back into the model each time.
         Most likely you'll want to make sure to be in model.eval() mode of operation for this.
         """
         for _ in range(max_new_tokens):
-
+            # crop idx to the last block_size tokens
+            # print(f"Input in generater starting: {input}")
+            # input = input[:, -config['seq_len']:]
+            # if the sequence context is growing too long we must crop it at block_size
+            input_cut = input if input.size(1) <= config['seq_len'] else input[:, -config['seq_len']:]
+            # print(f"for loop input : {input}")
             # forward the model to get the logits for the index in the sequence
-            logits, _ = Transformer(input)
+            logits, _ = self.decode(input_cut)
             # pluck the logits at the final step and scale by desired temperature
             logits = logits[:, -1, :] / temperature
 
             # apply softmax to convert logits to (normalized) probabilities
-            probs = torch.Softmax(logits, dim=-1)
+            probs = torch.softmax(logits, dim=-1)
             # sample from the distribution
-            idx_next = torch.multinomial(probs, num_samples=1)
+            input_next = torch.multinomial(probs, num_samples=1)
+            # print(f"Input next generate next word: {input_next}")
             # append sampled index to the running sequence and continue
-            idx = torch.cat((input, idx_next), dim=1)
+            input = torch.cat((input, input_next), dim=1)
 
-        return idx
+        print(f"Input in generate after concatenate: {input}")
+
+        return input
 
     # def project(self, x, label):
     #     # print_msg(f"step 6 : {str(x.shape)}")
@@ -234,7 +241,7 @@ class Transformer(nn.Module):
     #         x = self.projection_layer(x[:, [-1], :])
     #     return x, loss
 
-def build_transformer(src_vocab_size: int, src_block_size: int, d_model: int = 512, N: int = 6, h: int = 8, dropout: float = 0.1):
+def build_transformer(src_vocab_size: int, src_block_size: int, d_model: int = 384, N: int = 6, h: int = 6, dropout: float = 0.0):
 
     #create the embedding layers
     src_embed = InputEmbeddings(d_model, src_vocab_size)
@@ -243,9 +250,17 @@ def build_transformer(src_vocab_size: int, src_block_size: int, d_model: int = 5
 
     src_pos = LearnedPositionalEncoding(d_model, src_block_size, dropout)
 
+    # Create the decoder blocks
+    decoder_blocks = []
+    for _ in range(N):
+        decoder_self_attention_block = MultiHeadAttention(d_model, h, dropout, src_block_size)
+        feed_forward_block = FeedForwardBlock(d_model, dropout)
+        decoder_block = DecoderBlock(d_model, decoder_self_attention_block,
+                                     feed_forward_block, dropout)
+        decoder_blocks.append(decoder_block)
 
-    # Create the decoder
-    decoder = Decoder(N, d_model, h, src_block_size, dropout)
+    # Create the and decoder
+    decoder = Decoder(d_model, nn.ModuleList(decoder_blocks))
 
     # create the projection layer
     projection_layer = ProjectionLayer(d_model, src_vocab_size)

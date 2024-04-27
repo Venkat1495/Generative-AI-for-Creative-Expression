@@ -350,31 +350,31 @@ def get_ds(config):
     # val_size = total_size - train_size
 
 
-    train_ds_size = np.memmap(os.path.join("Data", 'train.bin'), dtype=np.uint16, mode='r').astype(np.int64)
-    val_ds_size = np.memmap(os.path.join("Data", 'val.bin'), dtype=np.uint16, mode='r').astype(np.int64)
+    train_ds_size = np.memmap(os.path.join("Data", 'train.bin'), dtype=np.uint16, mode='r')    #.astype(np.int64)
+    val_ds_size = np.memmap(os.path.join("Data", 'val.bin'), dtype=np.uint16, mode='r')    #.astype(np.int64)
 
-    # Convert the numpy array to a PyTorch tensor
-    train_data = torch.tensor(train_ds_size, dtype=torch.long)
-    val_data = torch.tensor(val_ds_size, dtype=torch.long)
+    # # Convert the numpy array to a PyTorch tensor
+    # train_data = torch.tensor(train_ds_size, dtype=torch.long)
+    # val_data = torch.tensor(val_ds_size, dtype=torch.long)
 
-    # train_ds_size = get_combin_segments(train_ds_size)
-    # val_ds_size = get_combin_segments(val_ds_size)
-    #
-    # # train_ds_size, val_ds_size = random_split(ds_raw, [train_size, val_size])
-    #
-    # train_ds = SongsDataset(train_ds_size, tokenizer_src, config['seq_len'])
-    # val_ds = SongsDataset(val_ds_size, tokenizer_src, config['seq_len'])
-    #
-    # # max_len_src = 0
-    #
-    # # for item in ds_raw:
-    # #     src_ids = tokenizer_src.encode(item['text']).ids
-    # #     max_len_src = max(max_len_src, len(src_ids))
-    #
-    # # print(f'Max length of source sentence: {max_len_src}')
-    #
-    # train_data = DataLoader(train_ds, batch_size=config['batch_size'], shuffle=True)
-    # val_data = DataLoader(val_ds, batch_size=1, shuffle=True)
+    train_ds_size = get_combin_segments(train_ds_size)
+    val_ds_size = get_combin_segments(val_ds_size)
+
+    # train_ds_size, val_ds_size = random_split(ds_raw, [train_size, val_size])
+
+    train_ds = SongsDataset(train_ds_size, tokenizer_src, config['seq_len'])
+    val_ds = SongsDataset(val_ds_size, tokenizer_src, config['seq_len'])
+
+    # max_len_src = 0
+
+    # for item in ds_raw:
+    #     src_ids = tokenizer_src.encode(item['text']).ids
+    #     max_len_src = max(max_len_src, len(src_ids))
+
+    # print(f'Max length of source sentence: {max_len_src}')
+
+    train_data = DataLoader(train_ds, batch_size=config['batch_size'], shuffle=True)
+    val_data = DataLoader(val_ds, batch_size=1, shuffle=True)
 
     return train_data, val_data, tokenizer_src
 
@@ -393,7 +393,6 @@ def train_model_2(config):
     # Path(config['model_folder']).mkdir(parents=True, exist_ok=True)
 
     train_data, val_data, tokenizer_src = get_ds(config)
-    print(len(train_data))
     model = get_model(config, vocab_src_len=50304).to(device)  # tokenizer_src.get_vocab_size()
 
     # Tensorboard
@@ -417,17 +416,15 @@ def train_model_2(config):
         print('No model to preload')
 
     # creating a Pytorch Optimizer
-    best_val_loss = float('inf')
     optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr'])
-    for step in range(62000):
+    for step in range(6000):
         # every once in a while evaluate the loss on train and val sets
-        if step % 15500 == 0:
+        if step % 1000 == 0:
             losses = estimate_loss(model, train_data, val_data, device)
             train_loss = losses['train']
             val_loss = losses['val']
-            print(f"step {step}: train loss {train_loss:.4f}, val loss {val_loss:.4f}")
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
+            print(f"step {step}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+            if val_loss < train_loss:
                 model_folder = f"{config['model_folder']}"
                 model_filename = f"{config['model_filename']}song.pt"
                 model_filename = str(Path('.') / model_folder / model_filename)
@@ -634,4 +631,4 @@ def train_model(config):
 if __name__ == '__main__':
     warnings.filterwarnings('ignore')
     config = get_config()
-    train_model_2(config)
+    train_model(config)

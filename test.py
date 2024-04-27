@@ -1,57 +1,58 @@
-# import pandas as pd
-# # #
-# # #
-# # #
-# # # def get_all_sentences(ds):
-# # #     for item in ds:
-# # #         yield item['text']
-# # #
-# # #
-# # #
-# # # ds_raw = pd.read_csv('data/spotify_millsongdata.csv')
-# # # print(get_all_sentences(ds_raw))
+import pandas as pd
 # #
-# # import numpy as np
 # #
-# # data = np.genfromtxt('data/spotify_millsongdata.csv', delimiter=',', skip_header=1)
-# # for item in data:
-# #     print(item['text'])
-# from datasets import load_dataset
-# from tokenizers import Tokenizer
-# from tokenizers.models import WordLevel
-# from tokenizers.trainers import WordLevelTrainer
-# from tokenizers.pre_tokenizers import Whitespace
-# from pathlib import Path
-# from config import get_config
+# #
+# # def get_all_sentences(ds):
+# #     for item in ds:
+# #         yield item['text']
+# #
+# #
+# #
+# # ds_raw = pd.read_csv('data/spotify_millsongdata.csv')
+# # print(get_all_sentences(ds_raw))
 #
-# def get_all_sentences(ds):
-#     for item in ds:
-#         yield item['text']
+# import numpy as np
 #
-# def get_or_build_tokenizer(config, ds):
-#     # config['tokenizer_file'] = '../tokenizers/tokenizer_{0}.json'
-#     tokenizer_path = Path(config['tokenizer_file'])
-#     if not Path.exists(tokenizer_path):
-#         tokenizer = Tokenizer(WordLevel(unk_token='[UNK]'))
-#         tokenizer.pre_tokenizer = Whitespace()
-#         trainer = WordLevelTrainer(special_tokens=["[UNK]", "[PAD]", "[SOS]", "[EOS]"], min_frequency=2)
-#         tokenizer.train_from_iterator(get_all_sentences(ds), trainer=trainer)
-#         tokenizer.save(str(tokenizer_path))
-#     else:
-#         tokenizer = Tokenizer.from_file(str(tokenizer_path))
-#     return tokenizer
-#
-#
-# ds_raw = pd.read_csv('data/spotify_millsongdata.csv')
-# config = get_config()
-# tokenizer_src = get_or_build_tokenizer(config, ds_raw)
-# outs = []
-# for item in ds_raw['text']:
-#     outs.append(len(tokenizer_src.encode(item).ids))
-#
-# max_value = max(outs)  # Finds the maximum value in the outs array
-# min_value = min(outs)  # Finds the minimum value in the outs array
-# print("Maximum:", max_value)
+# data = np.genfromtxt('data/spotify_millsongdata.csv', delimiter=',', skip_header=1)
+# for item in data:
+#     print(item['text'])
+from datasets import load_dataset
+from tokenizers import Tokenizer
+from tokenizers.models import WordLevel
+from tokenizers.trainers import WordLevelTrainer
+from tokenizers.pre_tokenizers import Whitespace
+from pathlib import Path
+from config import get_config
+
+def get_all_sentences(ds):
+    for item in ds:
+        yield item['text']
+
+def get_or_build_tokenizer(config, ds):
+    # config['tokenizer_file'] = '../tokenizers/tokenizer_{0}.json'
+    tokenizer_path = Path(config['tokenizer_file'])
+    if not Path.exists(tokenizer_path):
+        tokenizer = Tokenizer(WordLevel(unk_token='[UNK]'))
+        tokenizer.pre_tokenizer = Whitespace()
+        trainer = WordLevelTrainer(special_tokens=["[UNK]", "[PAD]", "[SOS]", "[EOS]"], min_frequency=2)
+        tokenizer.train_from_iterator(get_all_sentences(ds), trainer=trainer)
+        tokenizer.save(str(tokenizer_path))
+    else:
+        tokenizer = Tokenizer.from_file(str(tokenizer_path))
+    return tokenizer
+
+
+ds_raw = pd.read_csv('data/spotify_millsongdata.csv')
+config = get_config()
+tokenizer_src = get_or_build_tokenizer(config, ds_raw)
+outs = []
+
+for item in ds_raw['text']:
+    outs.append(len(tokenizer_src.encode(item).ids))
+
+max_value = max(outs)  # Finds the maximum value in the outs array
+min_value = min(outs)  # Finds the minimum value in the outs array
+print("Maximum:", max_value)
 # print("Minimum:", min_value)
 #
 # # next_max_value = max(value for value in outs if value != max_value)

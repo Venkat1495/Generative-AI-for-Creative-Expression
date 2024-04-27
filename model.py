@@ -3,42 +3,50 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+import os
+import tiktoken
 
 # Hyperparamerters
-path = 'data/spotify_millsongdata.csv'
-batch_size = 64 # how many independent squences can be processed parallel?
-block_size = 256 # what is the max contest lenght or predections ?
-max_iters = 5000
+path = 'data/part_5.csv'
+batch_size = 12 # how many independent squences can be processed parallel?
+block_size = 64 # what is the max contest lenght or predections ?
+max_iters = 2000
 eval_interval = 500
-learning_rate = 3e-4
+learning_rate = 1e-3
 device = 'cuda' if torch.cuda.is_available() else 'mps'
 eval_iters = 200
 n_embd = 384
 n_head = 6
 n_layer = 6
-dropout = 0.2
+dropout = 0.0
+vocab_size = 50304
 # ------------------
 
 torch.manual_seed(1337)
 
-# Reading Data set
-df = pd.read_csv(path)
+# # Reading Data set
+# df = pd.read_csv(path)
+#
+# # All the uniqie charecters that occurs in song lyrics
+# text = df['lyrics'].str.cat(sep='\n')
+# chars = sorted(list(set(text)))
+# vocab_size = len(chars)
+# # Creating the maping from charecter to intergers
+# stoi = { ch:i for i,ch in enumerate(chars)}
+# itos = { i:ch for i,ch in enumerate(chars)}
+# encode = lambda s: [stoi[c] for c in s] # encoder : It takes string and output as list of integers
+# decode = lambda l: ''.join([itos[i] for i in l])# decoder : It takes list on integers and outputs string
+#
+# # Now let split the data
+# data = torch.tensor(encode(text), dtype = torch.long)
+# n = int(0.9*len(data))
+tokenizer_src = tiktoken.get_encoding("gpt2")
+train_data = np.memmap(os.path.join("Data", 'train.bin'), dtype=np.uint16, mode='r').astype(np.int64) # data[:n]
+val_data = np.memmap(os.path.join("Data", 'val.bin'), dtype=np.uint16, mode='r').astype(np.int64) # data[n:]
 
-# All the uniqie charecters that occurs in song lyrics
-text = df['text'].str.cat(sep='\n')
-chars = sorted(list(set(text)))
-vocab_size = len(chars)
-# Creating the maping from charecter to intergers
-stoi = { ch:i for i,ch in enumerate(chars)}
-itos = { i:ch for i,ch in enumerate(chars)}
-encode = lambda s: [stoi[c] for c in s] # encoder : It takes string and output as list of integers
-decode = lambda l: ''.join([itos[i] for i in l])# decoder : It takes list on integers and outputs string
-
-# Now let split the data
-data = torch.tensor(encode(text), dtype = torch.long)
-n = int(0.9*len(data))
-train_data = data[:n]
-val_data = data[n:]
+# Convert the numpy array to a PyTorch tensor
+train_data = torch.tensor(train_data, dtype=torch.long)
+val_data = torch.tensor(val_data, dtype=torch.long)
 
 # data loading
 def get_batch(split):
@@ -203,7 +211,11 @@ for step in range(max_iters):
     optimizer.step()
 
 # generator from the model
-idx = torch.zeros((1, 1), dtype=torch.long, device=device)
-print(decode(m.generate(idx, max_new_tokens=500)[0].tolist()))
+idx = f"Title: Watching Over Me; Tag: pop; Artist: Canadian Tenors;\n\n" + "Lyrics: \n"
+input = tokenizer_src.encode_ordinary(idx)
+# print(f"Input After Encode: {input}")
+idx = (torch.tensor(input, dtype=torch.long, device=device)[None, ...])
+# idx = torch.zeros((1, 1), dtype=torch.long, device=device)
+print(tokenizer_src.decode(m.generate(idx, max_new_tokens=500)[0].tolist()))
 
 

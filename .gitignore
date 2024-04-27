@@ -1,2 +1,4 @@
 weights/*
 runs/tmodel/*
+Data/*.csv
+Data/*.bin

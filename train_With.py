@@ -102,7 +102,7 @@ def get_model(config, vocab_src_len):
 
 
 
-def cheking_point(model, val_dataloder, epoch, global_step, optimizer, tokenizer_src, device):
+def cheking_point(model, val_dataloder, epoch, global_step, optimizer, tokenizer_src, device, config):
 
     model.eval()
     average_val_loss = validate_model(model, val_dataloder, device)
@@ -206,7 +206,7 @@ def train_model(config):
             writer.flush()
             global_step += 1
 
-        average_val_loss = cheking_point(model, val_dataloder, epoch, global_step, optimizer, tokenizer_src, device)
+        average_val_loss = cheking_point(model, val_dataloder, epoch, global_step, optimizer, tokenizer_src, device, config)
 
         print(f"End of Epoch: {epoch}. Final Validation Loss : {average_val_loss}. Final training loss: {np.mean(total_loss)}")
 

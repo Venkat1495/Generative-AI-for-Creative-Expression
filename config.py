@@ -7,7 +7,7 @@ def get_config():
         "seq_len": 128,#256, #64,
         "segment_len": 65,
         "max_seq_len": 1204,
-        "d_model": 768,#  384,768, 1536
+        "d_model": 384,#  384,768, 1536
         "model_folder": "weights",
         "model_filename": "Song_Parameter", # "tmodel_",
         "preload": 'latest',

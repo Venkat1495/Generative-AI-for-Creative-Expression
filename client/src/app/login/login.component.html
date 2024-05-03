@@ -1,0 +1,80 @@
+<body>
+    <div class="page-wrapper">
+        <header class="oai-header">
+            <img src="../assets/creative-writer-high-resolution-logo-transparent.svg" alt="Creative Writer Logo">
+        </header>
+        <div class="main-container">
+            <section class="content-wrapper">
+                <div class="title-wrapper">
+                    <h1 *ngIf="!isApproved" class="title">Welcome back</h1>
+                    <h1 *ngIf="isApproved" class="title">Create an account</h1>
+                </div>
+                <div class="login-container">
+                    <div *ngIf="isApproved" class="input-wrapper">
+                        <input class="First-Name" [(ngModel)]="signupobj.first_name" inputmode="text" type="text" id="First-Name" name="First-Name"
+                             autocapitalize="none" spellcheck="false" required=""
+                            placeholder=" ">
+                        <label class="First-Name-label" for="First-Name">First Name</label>
+                    </div>
+                    <div *ngIf="isApproved" class="input-wrapper">
+                        <input class="Last-Name" [(ngModel)]="signupobj.last_name" inputmode="text" type="text" id="Last-Name" name="Last-Name"
+                             autocapitalize="none" spellcheck="false" required=""
+                            placeholder=" ">
+                        <label class="Last-Name-label" for="Last-Name">Last Name</label>
+                    </div>
+                    <div *ngIf="isApproved else otherInput" class="input-wrapper" >
+                        <input class="email-input" [(ngModel)]="signupobj.email" inputmode="email" type="email" id="email-input" name="email"
+                            autocapitalize="none" spellcheck="false" required=""
+                            placeholder=" ">
+                        <label class="email-label" for="email-input">Email address</label>
+                    </div>
+
+                    <ng-template #otherInput>
+                        <!-- When isApproved is false, use loginobj -->
+                        <div class="input-wrapper">
+                            <input class="email-input" [(ngModel)]="loginobj.username" inputmode="email" type="email" id="email-input" name="email"
+                            autocapitalize="none" spellcheck="false" required=""
+                            placeholder=" ">
+                            <label class="email-label" for="email-input">Email address</label>
+                        </div>
+                      </ng-template>
+
+
+                    <div *ngIf="isApproved else otherPassword" class="input-wrapper">
+                        <input class="password-input" [(ngModel)]="signupobj.password" inputmode="password" type="password" id="password-input" name="password"
+                             autocapitalize="none" spellcheck="false" required=""
+                            placeholder=" ">
+                        <label class="password-label" for="password-input">Password</label>
+                    </div>
+
+                    <ng-template #otherPassword>
+                        <!-- When isApproved is false, use loginobj -->
+                        <div class="input-wrapper">
+                            <input class="password-input" [(ngModel)]="loginobj.password" inputmode="password" type="password" id="password-input" name="password"
+                            autocapitalize="none" spellcheck="false" required=""
+                           placeholder=" ">
+                       <label class="password-label" for="password-input">Password</label>
+                        </div>
+                    </ng-template>
+
+                    <div *ngIf="errorMessage" class="error-display">
+                        <p>{{ errorMessage }}</p>
+                    </div>
+
+                    <button *ngIf="!isApproved" class="continue-btn" (click)="onLogin()" id="Login">Continue</button>
+                    <button *ngIf="isApproved" class="continue-btn" (click)="onSignUp()" id="SignUp">Continue</button>
+                    <p *ngIf="!isApproved" class="other-page">
+                        Don't have an account? <a class="other-page-link" (click) = "signUp('login')">SignUp</a>
+                    </p>
+                    <p *ngIf="isApproved" class="other-page">
+                        Already have an account? <a class="other-page-link" (click) = "signUp('signUp')">Login</a>
+                    </p>
+                </div>
+            </section>
+        </div>
+        <footer class="oai-footer"><a href="">Terms of Use</a><span
+                class="separator"></span><a href="">Privacy Policy</a>
+        </footer>
+    </div>
+</body>
+

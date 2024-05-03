@@ -1,0 +1,20 @@
+/* You can add global styles to this file, and also import other style files */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Acme&family=Lato&family=Poppins&display=swap');
+
+// html{
+//     font-family: "Acme", sans-serif;
+//     font-family: "Poppins", sans-serif;
+//     font-family: "Lato", sans-serif;
+// }
+
+// // Set default font-family for body
+// body {
+//     font-family: 'Acme', sans-serif;
+//     background-color: #E9EFE7; // Your desired background color
+//     color: #2A2C35; // Default text color
+//   }
+

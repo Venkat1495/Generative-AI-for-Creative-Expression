@@ -1,0 +1,59 @@
+<div class="prediction-page">
+    <!-- Loading Indicator -->
+    <div *ngIf="isLoading" class="loading-overlay">
+        Loading...
+    </div>
+    <div class="history">
+        <img src="../assets/creative-writer-high-resolution-logo-transparent.svg" alt="Creative Writer Logo" class="logo">
+        <ul>
+            <li *ngFor="let item of historyList" (click)="onSelectTitle(item)" [class.active]="item.urlSegment === selectedUrlSegment">
+                {{ item.title }}
+            </li>
+        </ul>
+        <div class="side-fotter">
+            <div class="profile-name">
+                <span>Profile Name</span>
+            </div>
+            <div class="logout">
+                <span (click)="onLogout()">Logout</span>
+            </div>
+        </div>
+        
+    </div>
+    <div class="results">
+        <div class="user">
+            <div class="user-results">
+                <p>Title: {{ predictionResults.Title }}; Genre: {{ predictionResults.Genre }}; Artist: {{ predictionResults.Artist }}; Number of Samples: {{ predictionResults.Number_of_Samples }};</p>
+            </div>
+        </div>
+        <div class="content">
+            <h3 class="heading">GPT3</h3>
+            <div class="gpt-results">
+                <p *ngIf="predictionResults">{{ predictionResults.GPT_Lyrics }}</p>
+            </div>
+            <h3 class="heading">My Model</h3>
+            <div class="transformer-results">
+                <p *ngIf="predictionResults" >{{ predictionResults.Lyrics }}</p>
+            </div>
+        </div>
+        <div class="form">
+            <div class="input-wrapper">
+              <input class="input" [(ngModel)]="predictionRequest.Title" placeholder=" " id="title"/>
+              <label class="label" for="title">Title</label>
+            </div>
+            <div class="input-wrapper">
+              <input class="input" [(ngModel)]="predictionRequest.Genre" placeholder=" " id="genre"/>
+              <label class="label" for="genre">Genre</label>
+            </div>
+            <div class="input-wrapper">
+              <input class="input" [(ngModel)]="predictionRequest.Artist" placeholder=" " id="artist"/>
+              <label class="label" for="artist">Artist</label>
+            </div>
+            <div class="input-wrapper">
+              <input class="input" type="number" [(ngModel)]="predictionRequest.Number_of_Samples" placeholder=" " id="samples"/>
+              <label class="label" for="samples">Number of Samples</label>
+            </div>
+            <button (click)="onSubmit()">Submit</button>
+          </div>
+    </div>
+</div>

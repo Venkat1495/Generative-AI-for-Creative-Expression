@@ -1,0 +1,299 @@
+// Define base styles and variables
+$background-color: #96DED1;
+$text-color: #2A2C35;
+$input-focus-color: #10A37F;
+$font-stack: 'Arial', sans-serif; // Replace with your desired font
+
+
+// body, html {
+//   height: 100%;
+//   margin: 0;
+// }
+
+body, html {
+    height: 100%;
+    margin: 0;
+    margin-bottom: 0;
+    display: flex;
+    justify-content: center;
+    // align-items: center;
+    font-family: $font-stack;
+    background-color: $background-color;
+    color: $text-color;
+    min-height: 100vh;
+  }  
+
+
+
+// Logo and Header Styles
+.oai-header {
+
+    margin: 20px;
+    margin-top: 50px;
+
+  img {
+    max-width: 400px; // Adjust as needed
+    // height: auto;
+  }
+}
+
+// Styles for the .page-wrapper to ensure it stretches properly
+.page-wrapper {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh; // This will make the page-wrapper stretch to fill the viewport height
+  }
+
+// Main container
+.main-container {
+  width: 100%;
+  max-width: 400px; // Adjust as needed
+  padding: 10px;
+  margin-top: 75px;
+
+
+}
+
+// Title Styles
+.title-wrapper {
+  margin-bottom: 5px;
+  
+  
+}
+
+h1 {
+    font-size: 32px; // Adjust as needed
+    font-weight: bold;
+    margin: 25px;
+    text-align: center;
+    font-family: 'Arial', sans-serif;
+  }
+
+// Input Styles
+.input-wrapper {
+  position: relative;
+  margin-bottom: 20px; // Adjust space between input and button
+
+  .email-input {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-color: $background-color;
+    border: 2px solid #B0B7C3;
+    border-radius: 6px;
+    box-sizing: border-box;
+    color: $text-color;
+    font-size: 1rem;
+    height: 3rem; // Adjust for height of input
+    line-height: 1.1;
+    outline: none;
+    padding: 0 1rem; // Adjust for padding inside input
+    transition: box-shadow .2s ease-in-out, border-color .2s ease-in-out;
+    width: 100%;
+    
+    &:focus {
+      border-color: $input-focus-color;
+      box-shadow: 0 0 0 2px $input-focus-color;
+    }
+    
+    &:valid {
+      border-color: $input-focus-color;
+    }
+  }
+
+  .email-label {
+    position: absolute;
+    left: 1rem; // Match the padding of input
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: $background-color;
+    transition: all .15s ease-in-out;
+    padding: 0 .5rem; // Adjust as needed
+    pointer-events: none;
+    color: darken($text-color, 20%); // Slightly darker than text color
+    
+    .email-input:focus ~ &, .email-input:not(:placeholder-shown) ~ & {
+      top: -10px; // Adjust as needed
+      font-size: .75rem; // Adjust as needed
+      color: $input-focus-color;
+    }
+  }
+}
+
+
+.email-input:focus+.email-label, .email-input:valid+.email-label {
+    font-size: 14px;
+    top: 0;
+    left: 10px;
+    color: #10a37f;
+    background-color: #E9EFE7;
+}
+
+.email-input:focus-within {
+    box-shadow: 1px #10a37f;
+}
+
+.email-input:focus, .email-input:valid {
+    border: 1px solid #10a37f;
+    outline: none;
+}
+
+// Continue using the previous variables and styles
+
+.input-wrapper{
+    position: relative;
+    margin-bottom: 20px;
+    // Reuse the same styles for the password input
+    .password-input {
+        @extend .email-input; // This will make password input inherit all styles from email input
+    }
+    
+    // Password Label - similar to email label
+    .password-label {
+        @extend .email-label;
+        
+        // If password field is focused, move the label up
+        .password-input:focus ~ &, .password-input:not(:placeholder-shown) ~ & {
+        top: -10px; // Adjust as needed
+        font-size: .75rem; // Adjust as needed
+        color: $input-focus-color;
+        }
+    }
+
+
+}
+
+
+.input-wrapper{
+    position: relative;
+    margin-bottom: 20px;
+    // Reuse the same styles for the password input
+    .First-Name {
+        @extend .email-input; // This will make password input inherit all styles from email input
+    }
+    
+    // Password Label - similar to email label
+    .First-Name-label {
+        @extend .email-label;
+        
+        // If password field is focused, move the label up
+        .First-Name:focus ~ &, .First-Name:not(:placeholder-shown) ~ & {
+        top: -10px; // Adjust as needed
+        font-size: .75rem; // Adjust as needed
+        color: $input-focus-color;
+        }
+    }
+
+
+}
+
+.input-wrapper{
+    position: relative;
+    margin-bottom: 20px;
+    // Reuse the same styles for the password input
+    .Last-Name {
+        @extend .email-input; // This will make password input inherit all styles from email input
+    }
+    
+    // Password Label - similar to email label
+    .Last-Name-label {
+        @extend .email-label;
+        
+        // If password field is focused, move the label up
+        .Last-Name:focus ~ &, .Last-Name-input:not(:placeholder-shown) ~ & {
+        top: -10px; // Adjust as needed
+        font-size: .75rem; // Adjust as needed
+        color: $input-focus-color;
+        }
+    }
+
+
+}
+
+
+
+.input-wrapper{
+    position: relative;
+    margin-bottom: 20px;
+    // Reuse the same styles for the password input
+    .password-input {
+        @extend .email-input; // This will make password input inherit all styles from email input
+    }
+    
+    // Password Label - similar to email label
+    .password-label {
+        @extend .email-label;
+        
+        // If password field is focused, move the label up
+        .password-input:focus ~ &, .password-input:not(:placeholder-shown) ~ & {
+        top: -10px; // Adjust as needed
+        font-size: .75rem; // Adjust as needed
+        color: $input-focus-color;
+        }
+    }
+
+
+}
+
+
+
+// Button Styles
+.continue-btn {
+  display: block;
+  width: 100%;
+  background-color: $input-focus-color;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 1rem;
+  font-size: 1rem;
+  margin-bottom: 1rem; // Adjust as needed
+  cursor: pointer;
+  transition: background-color .2s;
+
+  &:hover {
+    background-color: darken($input-focus-color, 10%);
+  }
+}
+
+.other-page {
+    text-align: center;
+    font-size: 14px;
+    
+}
+
+// Footer now uses fixed positioning
+.oai-footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding-right: 25px;
+    // padding: 20px;
+    background-color: $background-color; // To ensure it's visible above other elements
+    text-align: center;
+  
+    a {
+      color: $text-color;
+      text-decoration: none;
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  
+    .separator {
+      display: inline-block;
+      margin: 0 0.5rem;
+    }
+  }
+
+// Media queries for responsive adjustments
+@media (max-width: 768px) {
+  .main-container {
+    padding: 1rem;
+  }
+
+  .title-wrapper .title {
+    font-size: 1.5rem;
+  }
+}

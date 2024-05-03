@@ -1,0 +1,236 @@
+// Define base styles and variables
+$background-color: #E9EFE7;
+$text-color: #2A2C35;
+$input-focus-color: #10A37F;
+$font-stack: 'Arial', sans-serif; // Replace with your desired font
+
+.prediction-page {
+    display: flex;
+    font-family: Arial, sans-serif;
+    color: #2A2C35;
+    background-color: #96DED1;
+    min-height: 100vh;
+    overflow: hidden;
+}
+
+.history {
+    // flex: .375;
+
+    width: 260px;
+    padding: 20px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    // overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    // flex-shrink: 0;
+    overflow: hidden;
+    
+}
+
+.logo {
+    max-width: 200px; /* Adjusted logo size */
+    margin-bottom: 20px;
+}
+
+.history ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+.history li {
+    padding: 8px 16px;
+    margin: 4px 0;
+    // background-color: #f2f2f2;
+    cursor: pointer;
+    border-radius: 20px;
+}
+
+.history li:hover {
+    background-color: #10A37F; /* Light gray background on hover */
+    font-weight: bold;
+    color: #FFFFFF;
+}
+
+.history li.active {
+    background-color: #10A37F; /* Slightly darker gray for the active item */
+    font-weight: bold;
+    color: #FFFFFF;
+}
+
+.side-fotter { 
+    display: flex;
+    flex-direction: row;
+}
+
+
+.profile-name {
+    // position: fixed;
+    padding: 8px 16px;
+    margin: 4px 0;
+    // text-align: center;
+    // padding: 10px;
+    font-weight: bold;
+    cursor: pointer;
+    // margin: 50px;
+    bottom: 10px;
+    background-color: #F5F5F5;
+    border-radius: 10px;
+}
+
+.profile-name:hover {
+    color: #10A37F;
+}
+
+.logout {
+    position: fixed;
+    font-size: smaller;
+    font-weight: lighter;
+    cursor: pointer;
+    padding: 0px;
+    margin-left: 180px;
+    bottom: 25px;
+    color: #FFFFFF;
+}
+
+.logout:hover {
+    color: #000;
+}
+
+.results {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    background-color: #F5F5F5;
+}
+
+.results .content {
+    flex: 1;
+    display: flex;
+    gap: 10px;
+    overflow: hidden;
+}
+
+.user {
+    display: flex;
+    
+    flex-direction: row;
+    
+    max-height: fit-content;
+    .h3 {
+        font-weight: bold;
+        font-size: large;
+    }
+}
+
+.user-results {
+    flex: 1;
+    font-size: large;
+    text-align: center;
+    padding-bottom: 30px;
+    font-style: italic;
+}
+
+
+
+.gpt-results, .transformer-results{
+    flex: 1; // Each takes up half of the available width in their container
+    margin: 10px;
+    background-color: #F5F5F5; // White background for better readability
+    padding: 15px;
+    border-radius: 5px; // Rounded corners
+    // border: 1px solid #ddd; // Subtle border styling
+    white-space: pre-wrap; // Preserves whitespace and formatting
+    overflow-y: auto; // Allows scrolling within each section
+    max-height: 800px; // Max height before scrolling starts, adjust as necessary
+}
+
+.heading {
+    font-weight: bold;
+}
+
+.form {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    align-items: center;
+    padding: 20px;
+    // background-color: #E9EFE7; /* Light background color */
+}
+
+.input-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.input {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-color: #F5F5F5;
+    border: 1px solid #c2c8d0;
+    border-radius: 6px;
+    box-sizing: border-box;
+    color: #2A2C35;
+    font-size: 1rem;
+    height: 3rem;
+    line-height: 1.1;
+    outline: none;
+    padding: 0 1rem;
+    width: 100%;
+    transition: border-color .2s ease-in-out, box-shadow .2s ease-in-out;
+}
+
+.input:focus, .input:valid {
+    border-color: #10A37F;
+    box-shadow: 0 0 0 2px #10A37F;
+}
+
+.label {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: #F5F5F5;
+    transition: all .15s ease-in-out;
+    padding: 0 .5rem;
+    pointer-events: none;
+    color: darken(#2A2C35, 20%);
+}
+
+.input:focus + .label, .input:not(:placeholder-shown) + .label {
+    top: -1px;
+    font-size: .75rem;
+    color: #10A37F;
+}
+
+.form button {
+    padding: 10px 15px;
+    border-radius: 5px;
+    border: none;
+    background-color: #10A37F;
+    color: white;
+    cursor: pointer;
+    width: 100%;
+}
+
+.form button:hover {
+    background-color: #0C7A59;
+}
+
+
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5); /* Semi-transparent black background */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-size: 2em;
+    z-index: 1000; /* Ensure it covers other content */
+}

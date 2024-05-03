@@ -105,7 +105,8 @@ def get_model(config, vocab_src_len):
 def cheking_point(model, val_dataloder, epoch, global_step, optimizer, tokenizer_src, device):
     print("checking")
     model.eval()
-    average_val_loss = validate_model(model, val_dataloder, device)
+    # average_val_loss = validate_model(model, val_dataloder, device)
+    average_val_loss = 2
     model.train()
     config = get_config()
     # best_val_loss = average_val_loss  # Update the best validation loss

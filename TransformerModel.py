@@ -244,7 +244,7 @@ class Transformer(nn.Module):
     #         x = self.projection_layer(x[:, [-1], :])
     #     return x, loss
 
-def build_transformer(src_vocab_size: int, src_block_size: int, d_model: int = 1536, N: int = 6, h: int = 6, dropout: float = 0.0):
+def build_transformer(src_vocab_size: int, src_block_size: int, d_model: int = 768, N: int = 6, h: int = 6, dropout: float = 0.0):
 
     #create the embedding layers
     src_embed = InputEmbeddings(d_model, src_vocab_size)

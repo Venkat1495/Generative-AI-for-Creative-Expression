@@ -105,20 +105,28 @@ def get_model(config, vocab_src_len):
 def cheking_point(model, val_dataloder, epoch, global_step, optimizer, tokenizer_src, device):
     print("checking")
     model.eval()
+    print("checking1")
     # average_val_loss = validate_model(model, val_dataloder, device)
     average_val_loss = 2
+    print("checking2")
     model.train()
+    print("checking3")
     config = get_config()
+    print("checking4")
     # best_val_loss = average_val_loss  # Update the best validation loss
     model_folder = f"{config['model_folder']}"
+    print("checking5")
     model_filename = f"{config['model_filename']}_{epoch}.pt"
+    print("checking6")
     model_filename = str(Path('.') / model_folder / model_filename)
+    print("checking7")
     torch.save({
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
         'global_step': global_step
     }, model_filename)
+    print("checking8")
 
     model.eval()
     print("working")

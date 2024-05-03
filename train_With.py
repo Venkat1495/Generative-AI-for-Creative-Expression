@@ -111,7 +111,7 @@ def cheking_point(model, val_dataloder, epoch, global_step, optimizer, tokenizer
     model_filename = f"{config['model_filename']}_{epoch}.pt"
     print("checking6")
     model_filename = str(Path('.') / model_folder / model_filename)
-    print("checking7")
+    print(model_filename)
     torch.save({
         'epoch': epoch,
         'model_state_dict': model.state_dict(),

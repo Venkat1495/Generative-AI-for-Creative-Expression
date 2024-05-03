@@ -103,7 +103,7 @@ def get_model(config, vocab_src_len):
 
 
 def cheking_point(model, val_dataloder, epoch, global_step, optimizer, tokenizer_src, device):
-
+    print("checking")
     model.eval()
     average_val_loss = validate_model(model, val_dataloder, device)
     model.train()
@@ -120,7 +120,7 @@ def cheking_point(model, val_dataloder, epoch, global_step, optimizer, tokenizer
     }, model_filename)
 
     model.eval()
-
+    print("working")
     # Encode the starting string to token IDss
     print(f"Input: {config['generate_input']}")
     input = tokenizer_src.encode_ordinary(config['generate_input'])
@@ -196,7 +196,8 @@ def train_model(config):
 
 
             if  j % 2000 == 0: # j % 2000 == 0 and
-                average_val_loss, best_val_loss = cheking_point(model, val_dataloder, epoch, global_step, optimizer, tokenizer_src, device, best_val_loss)
+
+                average_val_loss = cheking_point(model, val_dataloder, epoch, global_step, optimizer, tokenizer_src, device)
 
             #Logging
 

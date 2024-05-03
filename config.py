@@ -4,10 +4,10 @@ def get_config():
         "batch_size": 32,
         "num_epochs": 9,
         "lr": 1e-3, # 10**-4,  1e-3   3e-4
-        "seq_len": 64,
+        "seq_len": 256, #64,
         "segment_len": 65,
         "max_seq_len": 1204,
-        "d_model": 384,
+        "d_model": 1536,#  384,768
         "model_folder": "weights",
         "model_filename": "Song_Parameter", # "tmodel_",
         "preload": 'latest',

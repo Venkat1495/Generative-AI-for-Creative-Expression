@@ -1,0 +1,27 @@
+# Frameworks and Web Server
+fastapi  # FastAPI web framework
+uvicorn   # ASGI server for running FastAPI applications
+
+# Database and Storage
+pymongo    # MongoDB driver for Python
+certifi  # For SSL/TLS certificates
+
+# Model Building and Machine Learning
+torch      # PyTorch, deep learning framework
+transformers  # Hugging Face transformers library
+tiktoken   # OpenAI's tokenization library
+
+# Security and Authentication
+python-jose  # JWT token handling
+passlib   # Password hashing and verification
+
+# Data Validation and Schema
+pydantic   # Data validation and parsing library
+
+# Additional Libraries
+numpy  # Numerical operations
+datasets  # Hugging Face datasets library
+tqdm  # Progress bars for loops and operations
+
+# Other
+openai    # OpenAI's API wrapper

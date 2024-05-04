@@ -201,12 +201,13 @@ class Transformer(nn.Module):
         return x, loss
 
     @torch.no_grad()
-    def generate(self, config, input, max_new_tokens, tokenizer, temperature=1.0):
+    def generate(self, config, input, device, max_new_tokens, tokenizer, temperature=1.0):
         """
         Take a conditioning sequence of indices idx (LongTensor of shape (b,t)) and complete
         the sequence max_new_tokens times, feeding the predictions back into the model each time.
         Most likely you'll want to make sure to be in model.eval() mode of operation for this.
         """
+        output = torch.zeros((1, 1), dtype=torch.long, device=device)
         for _ in range(max_new_tokens):
             # crop idx to the last block_size tokens
             # print(f"Input in generater starting: {input}")
@@ -227,22 +228,15 @@ class Transformer(nn.Module):
             # print(f"Input next generate next word: {input_next}")
             # append sampled index to the running sequence and continue
             input = torch.cat((input, input_next), dim=1)
+            output = torch.cat((output, input_next), dim=1)
             if "[EOS]" in tokenizer.decode(input_cut[0].tolist()):
                 break
 
         # print(f"Input in generate after concatenate: {input}")
 
-        return input
+        return output
 
-    # def project(self, x, label):
-    #     # print_msg(f"step 6 : {str(x.shape)}")
-    #
-    #     if label is not None:
-    #         x = self.projection_layer(x)
-    #         loss = nn.CrossEntropyLoss(x.view(-1, x.size(-1)), label.view(-1), ignore_index=-1)
-    #     else:
-    #         x = self.projection_layer(x[:, [-1], :])
-    #     return x, loss
+
 
 def build_transformer(src_vocab_size: int, src_block_size: int, d_model: int = 384, N: int = 6, h: int = 6, dropout: float = 0.0):
 

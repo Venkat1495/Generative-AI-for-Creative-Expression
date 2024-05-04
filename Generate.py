@@ -1,13 +1,10 @@
-from pathlib import Path
 from config import get_config, get_weights_file_path
 from TransformerModel import build_transformer
-from tokenizers import Tokenizer
 import torch
-from tqdm import tqdm
 import tiktoken
 
 
-def generate_song(seed_text: str, num_samples, max_length: int = 1200):
+def generate_song(seed_text: str, num_samples, max_length: int = 1500):
     # Define the device and load configurations
     vocab_src_len = 50304
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
@@ -32,16 +29,21 @@ def generate_song(seed_text: str, num_samples, max_length: int = 1200):
     out_id = tokenizer.encode_ordinary("[EOS]")
     input = (torch.tensor(input, dtype=torch.long, device=device)[None, ...])
 
-    # run generation
+    generated_outputs = ""
+
+    # Run generation
     with torch.no_grad():
         for k in range(num_samples):
-            y = model.generate(config, input, max_length, tokenizer)
-            print(f"\n\nGenerated Output:\n{tokenizer.decode(y[0].tolist())}")
-            print('-' * 30)
+            y = model.generate(config, input, device, max_length, tokenizer)
+            # Decoding and storing the output in the dictionary
+            generated_outputs += f'Sample {k + 1}:\n' + tokenizer.decode(y[0].tolist()) + '\n\n'
+
+    print(f"\n\nGenerated Output:\n{generated_outputs}")
     # y = model.generate(config, input, max_length)
     # print(f"\n\nGenerated Output:\n{tokenizer.decode(y[0].tolist())}")
+    return generated_outputs
 
 
 # Example use
-generate_song(get_config()['generate_input'], 10, 1000)
+# generate_song(get_config()['generate_input'], 10, 1000)
 

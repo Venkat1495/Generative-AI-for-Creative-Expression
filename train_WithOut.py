@@ -1,30 +1,15 @@
 import warnings
-
 import numpy as np
 import torch
 import os
-import torch.nn as nn
-import pandas as pd
-from torch.utils.data import Dataset, DataLoader, random_split
 
-from datasets import Dataset as d
-# from dataset import SongsDataset, causal_mask
-from dataset_practice import SongsDataset
 from TransformerModel import build_transformer
 from config import get_config, get_weights_file_path
 
-from datasets import load_dataset
+
 import tiktoken
-from tokenizers import Tokenizer
-from tokenizers.models import WordLevel
-from tokenizers.trainers import WordLevelTrainer
-from tokenizers.pre_tokenizers import Whitespace
-
 from pathlib import Path
-
 from torch.utils.tensorboard import SummaryWriter
-
-from tqdm import tqdm
 
 
 

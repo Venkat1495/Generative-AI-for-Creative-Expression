@@ -153,6 +153,7 @@ def train_model(config):
     quarter_point = len(train_dataloader) // 4  # Calculate the 25% point
     average_val_loss = 0
     best_val_loss = float('inf')  # Initialize best validation loss to infinity
+    print(f"Model Parameters :{sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
     # loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_src.token_to_id('[PAD]'), label_smoothing= 0.1).to(device)
 

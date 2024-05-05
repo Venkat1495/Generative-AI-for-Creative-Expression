@@ -34,6 +34,10 @@ encoder = get_encoding("gpt2")  # Use your desired model
 def tokenize_and_save(df, filename):
     # Calculate the length of the dataset after tokenization
     token_lengths = df['text'].apply(lambda text: len(encoder.encode_ordinary(text)))
+    if filename == "train.bin":
+        print(f"Train Tokens : {token_lengths}")
+    else:
+        print(f"Test Tokens : {token_lengths}")
     total_length = token_lengths.sum()
 
     # Prepare a memory-mapped file

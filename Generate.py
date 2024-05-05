@@ -17,7 +17,7 @@ def generate_song(seed_text: str, num_samples, max_length: int = 1500):
 
     # Load the pretrained weights
     model_filename = get_weights_file_path(config)  # Update function name as needed
-    state = torch.load(model_filename)
+    state = torch.load(model_filename, map_location=torch.device(device))
     state_dic = state['model_state_dict']
     model.load_state_dict(state_dic)
 
